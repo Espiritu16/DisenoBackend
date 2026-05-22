@@ -42,7 +42,59 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 | `spring-boot-devtools` | Soporte de desarrollo local con recarga rapida en cambios de codigo. |
 | `h2` + `spring-boot-starter-*-test` | Soporte de pruebas (persistencia en memoria y utilidades de testing de Spring). |
 
-## 5. Modulos funcionales
+## 5. Estructura del proyecto
+Estructura de paquetes (`src/main/java/com/aquacomunidad/backend`):
+
+```text
+backend/
+├── common/
+│   ├── enums/                  # Enumeraciones globales (roles, estados, prioridad)
+│   └── response/               # Estructura estandar de respuestas API
+├── config/                     # Configuracion de seguridad, OpenAPI y cifrado
+├── exception/                  # Excepciones de negocio y manejador global
+├── security/                   # Filtro JWT, utilitarios de contexto y handlers 401/403
+├── features/
+│   ├── autenticacion/          # Login, registro, refresh, recuperacion y cierre de sesion
+│   │   ├── controller/
+│   │   ├── dto/
+│   │   ├── entity/
+│   │   ├── repository/
+│   │   ├── service/
+│   │   └── support/
+│   ├── reporte/                # Registro/listado de reportes y reglas de duplicados
+│   │   ├── controller/
+│   │   ├── dto/
+│   │   ├── entity/
+│   │   ├── mapper/
+│   │   ├── repository/
+│   │   └── service/
+│   ├── caso/                   # Flujo operativo de atencion y estados del caso
+│   │   ├── controller/
+│   │   ├── dto/
+│   │   ├── entity/
+│   │   ├── mapper/
+│   │   ├── repository/
+│   │   └── service/
+│   ├── historial/              # Trazabilidad de cambios de estado en reporte/caso
+│   │   ├── dto/
+│   │   ├── entity/
+│   │   ├── repository/
+│   │   └── service/
+│   ├── usuario/                # Gestion administrativa de usuarios y roles
+│   │   ├── controller/
+│   │   ├── dto/
+│   │   ├── entity/
+│   │   ├── mapper/
+│   │   ├── repository/
+│   │   └── service/
+│   └── tablero/                # KPIs operativos para monitoreo
+│       ├── controller/
+│       ├── dto/
+│       └── service/
+└── AquacomunidadBackendApplication.java
+```
+
+## 6. Modulos funcionales
 | Modulo | Descripcion |
 |---|---|
 | `autenticacion` | Login, registro, refresh token rotation, cierre de sesion y recuperacion de contrasena. |
@@ -52,7 +104,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 | `historial` | Registro de auditoria de cambios de estado en reportes y casos. |
 | `tablero` | Consulta de KPIs operativos para monitoreo. |
 
-## 6. Reglas de negocio clave
+## 7. Reglas de negocio clave
 - Roles: `CIUDADANO`, `ADMIN`, `OPERADOR`.
 - Un ciudadano solo puede crear reportes y ver sus propios reportes.
 - Solo admin/operador puede gestionar casos operativos.
@@ -60,7 +112,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 - Duplicado basico: si existe reporte de mismo `tipo + zona` en 24h, se marca `posible_duplicado=true`.
 - Todo cambio de estado relevante se registra en historial.
 
-## 7. API principal
+## 8. API principal
 | Modulo | Metodo | Endpoint | Descripcion |
 |---|---|---|---|
 | Autenticacion | `POST` | `/api/v1/auth/iniciarSesion` | Inicia sesion y retorna access token + refresh token. |
@@ -83,7 +135,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 | Usuario | `POST` | `/api/v1/usuarios` | Crea usuario (admin). |
 | Usuario | `PATCH` | `/api/v1/usuarios/{id}/rol-estado` | Actualiza rol y estado del usuario (admin). |
 
-## 8. Seguridad
+## 9. Seguridad
 - Autenticacion con JWT Bearer.
 - Access token con expiracion configurable.
 - Refresh token persistido en BD con hash, estado y rotacion.
@@ -91,7 +143,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 - Respuestas de seguridad unificadas en formato `RespuestaApi` para `401/403`.
 
 
-## 9. Requerimientos funcionales
+## 10. Requerimientos funcionales
 | ID | Requerimiento | Descripcion |
 |---|---|---|
 | RF-01 | Autenticacion de usuarios | El sistema debe permitir iniciar sesion con correo y contrasena, emitiendo access token JWT y refresh token. |
@@ -110,7 +162,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 | RF-14 | Gestion administrativa de usuarios | Admin debe listar usuarios y actualizar rol/estado de cuentas. |
 | RF-15 | KPIs operativos | Admin/Operador deben consultar indicadores operativos del tablero. |
 
-## 10. Requerimientos no funcionales
+## 11. Requerimientos no funcionales
 | ID | Requerimiento | Descripcion |
 |---|---|---|
 | RNF-01 | Seguridad de autenticacion | JWT firmado con secreto configurable y expiracion parametrizable. |
@@ -124,7 +176,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 | RNF-09 | Mantenibilidad | Arquitectura modular por features (`autenticacion`, `reporte`, `caso`, `usuario`, `historial`, `tablero`). |
 | RNF-10 | Compatibilidad API | Soporte temporal de rutas legacy (`/login`, `/register`) para transicion de clientes. |
 
-## 11. Roles y permisos
+## 12. Roles y permisos
 | Accion | CIUDADANO | ADMIN | OPERADOR |
 |---|---|---|---|
 | Iniciar sesion / refrescar sesion | ✅ | ✅ | ✅ |
@@ -141,7 +193,7 @@ Reducir el tiempo de atencion de incidencias de agua mediante el flujo:
 
 `*` El ciudadano solo puede ver trazabilidad de sus propios reportes.
 
-## 12. Modelo Logico de Base de Datos
+## 13. Modelo Logico de Base de Datos
 ### Tablas principales
 - `usuario`
 - `reporte`
@@ -273,7 +325,7 @@ erDiagram
 - Archivo de estructura (sin datos):
   - `src/main/resources/db/db_esquema.sql`
 
-## 13. Diagrama de Arquitectura
+## 14. Diagrama de Arquitectura
 ```mermaid
 flowchart TB
   subgraph C1["Capa Cliente"]
@@ -320,7 +372,7 @@ flowchart TB
   JPA --> DB
 ```
 
-## 14. Configuracion y ejecucion local
+## 15. Configuracion y ejecucion local
 ### Requisitos
 - Java 17+
 - Maven Wrapper (`./mvnw`)
@@ -344,7 +396,7 @@ Configurar conexion en `src/main/resources/application.properties` (o por variab
 ### Swagger/OpenAPI
 - `http://localhost:8080/swagger-ui.html`
 
-## 15. Roadmap y estado de cierre
+## 16. Roadmap y estado de cierre
 | Item | Estado |
 |---|---|
 | Autenticacion y autorizacion (JWT + RBAC + refresh rotation) | Completado |
