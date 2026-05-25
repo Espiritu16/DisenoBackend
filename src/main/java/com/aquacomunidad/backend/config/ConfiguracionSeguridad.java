@@ -37,7 +37,7 @@ public class ConfiguracionSeguridad {
             .authenticationEntryPoint(manejadorAutenticacionNoValida)
             .accessDeniedHandler(manejadorAccesoDenegado))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/api/v1/auth/**", "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+            .requestMatchers("/api/v1/auth/**", "/api-docs/**", "/swagger-ui.html", "/swagger-ui/**", "/uploads/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/v1/reportes/mis-reportes").hasAnyRole("CIUDADANO", "ADMIN", "OPERADOR")
             .requestMatchers(HttpMethod.GET, "/api/v1/reportes").hasAnyRole("ADMIN", "OPERADOR")
             .requestMatchers(HttpMethod.GET, "/api/v1/reportes/*/trazabilidad")

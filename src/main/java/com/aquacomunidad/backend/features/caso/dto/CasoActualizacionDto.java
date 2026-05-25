@@ -1,5 +1,7 @@
 package com.aquacomunidad.backend.features.caso.dto;
 
+import java.util.List;
+
 import com.aquacomunidad.backend.common.enums.EstadoCaso;
 
 import jakarta.validation.constraints.NotNull;
@@ -15,4 +17,5 @@ public class CasoActualizacionDto {
 
   private String observaciones;
   private String evidenciaCierre;
+  private List<String> evidenciaCierreUrls;
 }

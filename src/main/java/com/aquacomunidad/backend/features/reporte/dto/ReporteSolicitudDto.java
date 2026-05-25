@@ -1,6 +1,7 @@
 package com.aquacomunidad.backend.features.reporte.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -13,7 +14,6 @@ import lombok.Setter;
 @Setter
 public class ReporteSolicitudDto {
 
-  @NotNull
   private Long usuarioId;
 
   @NotBlank
@@ -24,6 +24,8 @@ public class ReporteSolicitudDto {
 
   @NotBlank
   private String fotoUrl;
+
+  private List<String> fotoUrls;
 
   @NotNull
   @DecimalMin("-90.0")

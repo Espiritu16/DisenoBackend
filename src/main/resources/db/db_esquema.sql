@@ -46,6 +46,23 @@ CREATE TABLE `caso_operativo` (
   CONSTRAINT `chk_caso_cierre_evidencia` CHECK (((`estado` <> _utf8mb4'RESUELTO') or ((`estado` = _utf8mb4'RESUELTO') and (`evidencia_cierre` is not null) and (char_length(trim(`evidencia_cierre`)) > 0))))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `caso_evidencia`
+--
+
+DROP TABLE IF EXISTS `caso_evidencia`;
+CREATE TABLE `caso_evidencia` (
+  `id_caso_evidencia` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id_caso` bigint unsigned NOT NULL,
+  `url` varchar(800) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `public_id` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orden` int NOT NULL DEFAULT 0,
+  `fecha_creacion` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_caso_evidencia`),
+  KEY `idx_caso_evidencia_caso` (`id_caso`,`orden`),
+  CONSTRAINT `fk_caso_evidencia_caso` FOREIGN KEY (`id_caso`) REFERENCES `caso_operativo` (`id_caso`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
@@ -245,6 +262,23 @@ CREATE TABLE `reporte` (
   CONSTRAINT `chk_reporte_zona_no_vacia` CHECK ((char_length(trim(`zona`)) > 0))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `reporte_imagen`
+--
+
+DROP TABLE IF EXISTS `reporte_imagen`;
+CREATE TABLE `reporte_imagen` (
+  `id_reporte_imagen` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id_reporte` bigint unsigned NOT NULL,
+  `url` varchar(800) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `public_id` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `orden` int NOT NULL DEFAULT 0,
+  `fecha_creacion` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_reporte_imagen`),
+  KEY `idx_reporte_imagen_reporte` (`id_reporte`,`orden`),
+  CONSTRAINT `fk_reporte_imagen_reporte` FOREIGN KEY (`id_reporte`) REFERENCES `reporte` (`id_reporte`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;

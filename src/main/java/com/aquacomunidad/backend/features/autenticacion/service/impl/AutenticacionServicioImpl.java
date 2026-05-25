@@ -67,7 +67,8 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
   @Override
   @Transactional
   public IniciarSesionRespuestaDto iniciarSesion(IniciarSesionSolicitudDto request) {
-    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(request.getCorreo())
+    String correo = normalizarCorreo(request.getCorreo());
+    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(correo)
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.UNAUTHORIZED, "Credenciales invalidas"));
 
     if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
@@ -164,13 +165,14 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
   @Override
   @Transactional
   public UsuarioRespuestaDto registrar(RegistroSolicitudDto request) {
-    if (usuarioRepositorio.existsByCorreoIgnoreCase(request.getCorreo())) {
+    String correo = normalizarCorreo(request.getCorreo());
+    if (usuarioRepositorio.existsByCorreoIgnoreCase(correo)) {
       throw new ExcepcionApi(HttpStatus.CONFLICT, "El correo ya esta registrado");
     }
 
     UsuarioEntidad user = new UsuarioEntidad();
-    user.setNombre(request.getNombre());
-    user.setCorreo(request.getCorreo());
+    user.setNombre(request.getNombre().trim());
+    user.setCorreo(correo);
     user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
     user.setRol(RolUsuario.CIUDADANO);
     user.setEstado(EstadoUsuario.ACTIVO);
@@ -189,7 +191,7 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
   @Override
   @Transactional
   public MensajeSimpleRespuestaDto solicitarCodigoRecuperacion(SolicitarCodigoRecuperacionSolicitudDto request) {
-    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(request.getCorreo())
+    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(normalizarCorreo(request.getCorreo()))
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "No existe una cuenta con ese correo"));
 
     invalidarTokensActivos(user.getId());
@@ -215,7 +217,7 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
   @Override
   @Transactional
   public ConfirmarCodigoRecuperacionRespuestaDto confirmarCodigoRecuperacion(ConfirmarCodigoRecuperacionSolicitudDto request) {
-    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(request.getCorreo())
+    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(normalizarCorreo(request.getCorreo()))
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "No existe una cuenta con ese correo"));
 
     TokenRecuperacionContrasenaEntidad token = tokenRecuperacionRepositorio
@@ -253,7 +255,7 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
       throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "La confirmacion de contrasena no coincide");
     }
 
-    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(request.getCorreo())
+    UsuarioEntidad user = usuarioRepositorio.findByCorreoIgnoreCase(normalizarCorreo(request.getCorreo()))
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "No existe una cuenta con ese correo"));
 
     TokenRecuperacionContrasenaEntidad token = tokenRecuperacionRepositorio
@@ -371,5 +373,9 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
       tokenRecuperacionRepositorio.save(token);
       throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "El codigo de recuperacion expiro");
     }
+  }
+
+  private String normalizarCorreo(String correo) {
+    return correo == null ? "" : correo.trim().toLowerCase();
   }
 }

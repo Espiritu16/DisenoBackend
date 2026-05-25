@@ -27,6 +27,12 @@ public class UsuarioServicioImpl implements UsuarioServicio {
   @Override
   @Transactional
   public UsuarioRespuestaDto crear(UsuarioSolicitudDto request) {
+    String correo = normalizarCorreo(request.getCorreo());
+    if (usuarioRepositorio.existsByCorreoIgnoreCase(correo)) {
+      throw new ExcepcionApi(HttpStatus.CONFLICT, "El correo ya esta registrado");
+    }
+    request.setCorreo(correo);
+    request.setNombre(request.getNombre().trim());
     return usuarioMapeador.aRespuesta(usuarioRepositorio.save(usuarioMapeador.toEntidad(request)));
   }
 
@@ -44,5 +50,9 @@ public class UsuarioServicioImpl implements UsuarioServicio {
     usuario.setRol(request.getRol());
     usuario.setEstado(request.getEstado());
     return usuarioMapeador.aRespuesta(usuarioRepositorio.save(usuario));
+  }
+
+  private String normalizarCorreo(String correo) {
+    return correo == null ? "" : correo.trim().toLowerCase();
   }
 }

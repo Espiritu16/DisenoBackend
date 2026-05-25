@@ -18,7 +18,7 @@ public interface ReporteRepositorio extends JpaRepository<ReporteEntidad, Long> 
   @Query("""
       select case when count(r) > 0 then true else false end
       from ReporteEntidad r
-      where r.tipo = :tipo
+      where lower(r.tipo.nombre) = lower(:tipo)
         and r.zona = :zona
         and r.fechaCreacion >= :fechaDesde
       """)

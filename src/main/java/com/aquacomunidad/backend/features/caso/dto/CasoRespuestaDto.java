@@ -1,6 +1,7 @@
 package com.aquacomunidad.backend.features.caso.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.aquacomunidad.backend.common.enums.EstadoCaso;
 import com.aquacomunidad.backend.common.enums.PrioridadCaso;
@@ -18,6 +19,7 @@ public class CasoRespuestaDto {
   private EstadoCaso estado;
   private String observaciones;
   private String evidenciaCierre;
+  private List<String> evidenciaCierreUrls;
   private LocalDateTime fechaAsignacion;
   private LocalDateTime fechaCierre;
 }

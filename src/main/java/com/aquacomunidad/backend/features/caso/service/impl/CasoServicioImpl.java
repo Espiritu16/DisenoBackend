@@ -14,7 +14,9 @@ import com.aquacomunidad.backend.features.caso.dto.CasoSolicitudDto;
 import com.aquacomunidad.backend.features.caso.dto.CasoRespuestaDto;
 import com.aquacomunidad.backend.features.caso.dto.CasoActualizacionDto;
 import com.aquacomunidad.backend.features.caso.entity.CasoEntidad;
+import com.aquacomunidad.backend.features.caso.entity.CasoEvidenciaEntidad;
 import com.aquacomunidad.backend.features.caso.mapper.CasoMapeador;
+import com.aquacomunidad.backend.features.caso.repository.CasoEvidenciaRepositorio;
 import com.aquacomunidad.backend.features.caso.repository.CasoRepositorio;
 import com.aquacomunidad.backend.features.caso.service.CasoServicio;
 import com.aquacomunidad.backend.features.historial.service.HistorialEstadoServicio;
@@ -33,6 +35,7 @@ public class CasoServicioImpl implements CasoServicio {
   private final CasoRepositorio casoRepositorio;
   private final ReporteRepositorio reporteRepositorio;
   private final UsuarioRepositorio usuarioRepositorio;
+  private final CasoEvidenciaRepositorio casoEvidenciaRepositorio;
   private final CasoMapeador casoMapeador;
   private final HistorialEstadoServicio historialEstadoServicio;
 
@@ -49,6 +52,7 @@ public class CasoServicioImpl implements CasoServicio {
     CasoEntidad entity = new CasoEntidad();
     entity.setReporteOrigen(reporte);
     entity.setResponsable(responsable);
+    entity.setCreadoPor(actor);
     entity.setPrioridad(request.getPrioridad());
 
     EstadoReporte estadoAnteriorReporte = reporte.getEstado();
@@ -84,14 +88,17 @@ public class CasoServicioImpl implements CasoServicio {
     EstadoCaso estadoAnteriorCaso = entity.getEstado();
     EstadoReporte estadoAnteriorReporte = entity.getReporteOrigen().getEstado();
 
-    if (request.getEstado() == EstadoCaso.RESUELTO
-        && (request.getEvidenciaCierre() == null || request.getEvidenciaCierre().trim().isEmpty())) {
+    List<String> evidencias = evidenciasSolicitadas(request);
+    if (request.getEstado() == EstadoCaso.RESUELTO && evidencias.isEmpty()
+        && (entity.getEvidenciaCierre() == null || entity.getEvidenciaCierre().trim().isEmpty())) {
       throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Para cerrar como RESUELTO debe enviar evidencia_cierre");
     }
 
     entity.setEstado(request.getEstado());
     entity.setObservaciones(request.getObservaciones());
-    entity.setEvidenciaCierre(request.getEvidenciaCierre());
+    if (!evidencias.isEmpty()) {
+      entity.setEvidenciaCierre(evidencias.get(0));
+    }
 
     if (request.getEstado() == EstadoCaso.RESUELTO) {
       entity.setFechaCierre(LocalDateTime.now());
@@ -99,6 +106,7 @@ public class CasoServicioImpl implements CasoServicio {
     }
 
     CasoEntidad saved = casoRepositorio.save(entity);
+    guardarEvidencias(saved, evidencias);
 
     historialEstadoServicio.registrarCambioCaso(
         saved,
@@ -117,6 +125,31 @@ public class CasoServicioImpl implements CasoServicio {
     }
 
     return casoMapeador.aRespuesta(saved);
+  }
+
+  private List<String> evidenciasSolicitadas(CasoActualizacionDto request) {
+    if (request.getEvidenciaCierreUrls() != null && !request.getEvidenciaCierreUrls().isEmpty()) {
+      return request.getEvidenciaCierreUrls().stream()
+          .filter(url -> url != null && !url.isBlank())
+          .map(String::trim)
+          .toList();
+    }
+    if (request.getEvidenciaCierre() != null && !request.getEvidenciaCierre().isBlank()) {
+      return List.of(request.getEvidenciaCierre().trim());
+    }
+    return List.of();
+  }
+
+  private void guardarEvidencias(CasoEntidad caso, List<String> urls) {
+    int baseOrden = caso.getEvidencias().size();
+    for (int i = 0; i < urls.size(); i++) {
+      CasoEvidenciaEntidad evidencia = new CasoEvidenciaEntidad();
+      evidencia.setCaso(caso);
+      evidencia.setUrl(urls.get(i));
+      evidencia.setOrden(baseOrden + i);
+      casoEvidenciaRepositorio.save(evidencia);
+      caso.getEvidencias().add(evidencia);
+    }
   }
 
   @Override

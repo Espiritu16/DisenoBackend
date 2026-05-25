@@ -2,6 +2,8 @@ package com.aquacomunidad.backend.features.reporte.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.aquacomunidad.backend.common.enums.EstadoReporte;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -16,6 +18,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -37,8 +40,9 @@ public class ReporteEntidad {
   @JoinColumn(name = "id_usuario")
   private UsuarioEntidad usuario;
 
-  @Column(nullable = false, length = 80)
-  private String tipo;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "id_tipo")
+  private CatalogoTipoIncidenciaEntidad tipo;
 
   @Column(nullable = false, length = 1200)
   private String descripcion;
@@ -70,6 +74,9 @@ public class ReporteEntidad {
 
   @Column(name = "fecha_actualizacion", nullable = false)
   private LocalDateTime fechaActualizacion;
+
+  @OneToMany(mappedBy = "reporte")
+  private List<ReporteImagenEntidad> imagenes = new ArrayList<>();
 
   @PrePersist
   public void prePersist() {

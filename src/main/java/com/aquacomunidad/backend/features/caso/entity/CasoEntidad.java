@@ -1,6 +1,8 @@
 package com.aquacomunidad.backend.features.caso.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.aquacomunidad.backend.common.enums.EstadoCaso;
 import com.aquacomunidad.backend.common.enums.PrioridadCaso;
@@ -17,6 +19,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -41,6 +44,10 @@ public class CasoEntidad {
   @JoinColumn(name = "id_responsable")
   private UsuarioEntidad responsable;
 
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "creado_por")
+  private UsuarioEntidad creadoPor;
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 20)
   private PrioridadCaso prioridad;
@@ -60,6 +67,9 @@ public class CasoEntidad {
 
   @Column(name = "fecha_cierre")
   private LocalDateTime fechaCierre;
+
+  @OneToMany(mappedBy = "caso")
+  private List<CasoEvidenciaEntidad> evidencias = new ArrayList<>();
 
   @PrePersist
   public void prePersist() {

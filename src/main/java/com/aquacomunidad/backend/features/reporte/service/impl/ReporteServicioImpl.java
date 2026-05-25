@@ -13,10 +13,14 @@ import com.aquacomunidad.backend.features.caso.entity.CasoEntidad;
 import com.aquacomunidad.backend.features.caso.repository.CasoRepositorio;
 import com.aquacomunidad.backend.features.historial.dto.DetalleTrazabilidadReporteDto;
 import com.aquacomunidad.backend.features.historial.service.HistorialEstadoServicio;
+import com.aquacomunidad.backend.features.reporte.entity.CatalogoTipoIncidenciaEntidad;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteSolicitudDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
+import com.aquacomunidad.backend.features.reporte.entity.ReporteImagenEntidad;
 import com.aquacomunidad.backend.features.reporte.mapper.ReporteMapeador;
+import com.aquacomunidad.backend.features.reporte.repository.CatalogoTipoIncidenciaRepositorio;
+import com.aquacomunidad.backend.features.reporte.repository.ReporteImagenRepositorio;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -32,6 +36,8 @@ public class ReporteServicioImpl implements ReporteServicio {
   private final ReporteRepositorio reporteRepositorio;
   private final UsuarioRepositorio usuarioRepositorio;
   private final CasoRepositorio casoRepositorio;
+  private final CatalogoTipoIncidenciaRepositorio catalogoTipoIncidenciaRepositorio;
+  private final ReporteImagenRepositorio reporteImagenRepositorio;
   private final ReporteMapeador reporteMapeador;
   private final HistorialEstadoServicio historialEstadoServicio;
 
@@ -42,14 +48,16 @@ public class ReporteServicioImpl implements ReporteServicio {
     UsuarioEntidad usuario = usuarioRepositorio.findById(usuarioIdAutenticado)
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Usuario no encontrado"));
 
-    ReporteEntidad entidad = reporteMapeador.toEntidad(request, usuario);
+    CatalogoTipoIncidenciaEntidad tipo = resolverTipo(request.getTipo());
+    ReporteEntidad entidad = reporteMapeador.toEntidad(request, usuario, tipo);
     boolean posibleDuplicado = reporteRepositorio.existePosibleDuplicado(
-        request.getTipo(),
+        tipo.getNombre(),
         request.getZona(),
         LocalDateTime.now().minusHours(24));
     entidad.setPosibleDuplicado(posibleDuplicado);
 
     ReporteEntidad saved = reporteRepositorio.save(entidad);
+    guardarImagenes(saved, request);
 
     historialEstadoServicio.registrarCambioReporte(
         saved,
@@ -59,6 +67,24 @@ public class ReporteServicioImpl implements ReporteServicio {
         usuario);
 
     return reporteMapeador.aRespuesta(saved);
+  }
+
+  private void guardarImagenes(ReporteEntidad reporte, ReporteSolicitudDto request) {
+    List<String> urls = request.getFotoUrls() == null || request.getFotoUrls().isEmpty()
+        ? List.of(request.getFotoUrl())
+        : request.getFotoUrls();
+    for (int i = 0; i < urls.size(); i++) {
+      String url = urls.get(i);
+      if (url == null || url.isBlank()) {
+        continue;
+      }
+      ReporteImagenEntidad imagen = new ReporteImagenEntidad();
+      imagen.setReporte(reporte);
+      imagen.setUrl(url.trim());
+      imagen.setOrden(i);
+      reporteImagenRepositorio.save(imagen);
+      reporte.getImagenes().add(imagen);
+    }
   }
 
   @Override
@@ -98,5 +124,31 @@ public class ReporteServicioImpl implements ReporteServicio {
     CasoEntidad caso = casoRepositorio.findByReporteOrigenId(reporteId).orElse(null);
     Long casoId = caso == null ? null : caso.getId();
     return historialEstadoServicio.obtenerDetalle(reporteId, casoId);
+  }
+
+  private CatalogoTipoIncidenciaEntidad resolverTipo(String tipoSolicitado) {
+    String tipo = tipoSolicitado == null ? "" : tipoSolicitado.trim();
+    return catalogoTipoIncidenciaRepositorio.findByNombreIgnoreCase(tipo)
+        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCase(tipo))
+        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCase(codigoPorNombreVisible(tipo)))
+        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCase("OTRO"))
+        .orElseThrow(() -> new ExcepcionApi(HttpStatus.BAD_REQUEST, "Tipo de incidencia no configurado"));
+  }
+
+  private String codigoPorNombreVisible(String tipo) {
+    String normalizado = tipo.toLowerCase();
+    if (normalizado.contains("fuga")) {
+      return "FUGA_AGUA";
+    }
+    if (normalizado.contains("presion") || normalizado.contains("presión")) {
+      return "BAJA_PRESION";
+    }
+    if (normalizado.contains("corte")) {
+      return "CORTE_SERVICIO";
+    }
+    if (normalizado.contains("turbia") || normalizado.contains("calidad") || normalizado.contains("agua")) {
+      return "AGUA_TURBIA";
+    }
+    return "OTRO";
   }
 }

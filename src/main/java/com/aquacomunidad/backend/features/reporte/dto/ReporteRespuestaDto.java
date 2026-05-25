@@ -2,6 +2,7 @@ package com.aquacomunidad.backend.features.reporte.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.aquacomunidad.backend.common.enums.EstadoReporte;
 
@@ -16,6 +17,7 @@ public class ReporteRespuestaDto {
   private String tipo;
   private String descripcion;
   private String fotoUrl;
+  private List<String> fotoUrls;
   private BigDecimal lat;
   private BigDecimal lng;
   private String direccion;
