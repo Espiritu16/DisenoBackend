@@ -16,6 +16,26 @@ public interface ReporteRepositorio extends JpaRepository<ReporteEntidad, Long> 
   List<ReporteEntidad> findByEstado(EstadoReporte estado);
 
   @Query("""
+      select r
+      from ReporteEntidad r
+      where (:usuarioId is null or r.usuario.id = :usuarioId)
+        and (:estado is null or r.estado = :estado)
+        and (:tipo is null or lower(r.tipo.nombre) like lower(concat('%', :tipo, '%'))
+            or lower(r.tipo.codigo) like lower(concat('%', :tipo, '%')))
+        and (:zona is null or lower(r.zona) like lower(concat('%', :zona, '%')))
+        and (:fechaDesde is null or r.fechaCreacion >= :fechaDesde)
+        and (:fechaHasta is null or r.fechaCreacion <= :fechaHasta)
+      order by r.fechaCreacion desc
+      """)
+  List<ReporteEntidad> buscarConFiltros(
+      @Param("usuarioId") Long usuarioId,
+      @Param("estado") EstadoReporte estado,
+      @Param("tipo") String tipo,
+      @Param("zona") String zona,
+      @Param("fechaDesde") LocalDateTime fechaDesde,
+      @Param("fechaHasta") LocalDateTime fechaHasta);
+
+  @Query("""
       select case when count(r) > 0 then true else false end
       from ReporteEntidad r
       where lower(r.tipo.nombre) = lower(:tipo)

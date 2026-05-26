@@ -1,9 +1,11 @@
 package com.aquacomunidad.backend.features.reporte.controller;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,15 +46,13 @@ public class ReporteControlador {
   public ResponseEntity<RespuestaApi<List<ReporteRespuestaDto>>> listarTodos(
       @RequestParam(required = false) Long usuarioId,
       @RequestParam(required = false) EstadoReporte estado,
+      @RequestParam(required = false) String tipo,
+      @RequestParam(required = false) String zona,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fechaDesde,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fechaHasta,
       HttpServletRequest httpRequest) {
-    List<ReporteRespuestaDto> data;
-    if (usuarioId != null) {
-      data = reporteServicio.listarPorUsuario(usuarioId);
-    } else if (estado != null) {
-      data = reporteServicio.listarPorEstado(estado);
-    } else {
-      data = reporteServicio.listarTodos();
-    }
+    List<ReporteRespuestaDto> data = reporteServicio.listarConFiltros(
+        usuarioId, estado, tipo, zona, fechaDesde, fechaHasta);
     return ResponseEntity.ok(RespuestaApi.ok("Reportes listados", data, httpRequest.getRequestURI()));
   }
 

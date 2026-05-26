@@ -2,6 +2,8 @@ package com.aquacomunidad.backend.features.caso.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -9,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aquacomunidad.backend.common.enums.EstadoCaso;
 import com.aquacomunidad.backend.common.enums.EstadoReporte;
+import com.aquacomunidad.backend.common.enums.EstadoUsuario;
+import com.aquacomunidad.backend.common.enums.RolUsuario;
 import com.aquacomunidad.backend.exception.ExcepcionApi;
 import com.aquacomunidad.backend.features.caso.dto.CasoSolicitudDto;
 import com.aquacomunidad.backend.features.caso.dto.CasoRespuestaDto;
@@ -31,6 +35,11 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class CasoServicioImpl implements CasoServicio {
+  private static final Map<EstadoCaso, Set<EstadoCaso>> TRANSICIONES_PERMITIDAS = Map.of(
+      EstadoCaso.EN_PROCESO, Set.of(EstadoCaso.EN_PROCESO, EstadoCaso.ESCALADO, EstadoCaso.RESUELTO, EstadoCaso.RECHAZADO),
+      EstadoCaso.ESCALADO, Set.of(EstadoCaso.ESCALADO, EstadoCaso.EN_PROCESO, EstadoCaso.RESUELTO, EstadoCaso.RECHAZADO),
+      EstadoCaso.RESUELTO, Set.of(EstadoCaso.RESUELTO),
+      EstadoCaso.RECHAZADO, Set.of(EstadoCaso.RECHAZADO));
 
   private final CasoRepositorio casoRepositorio;
   private final ReporteRepositorio reporteRepositorio;
@@ -43,11 +52,27 @@ public class CasoServicioImpl implements CasoServicio {
   @Transactional
   public CasoRespuestaDto crear(CasoSolicitudDto request) {
     UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
+    if (actor.getRol() == RolUsuario.OPERADOR && !actor.getId().equals(request.getResponsableId())) {
+      throw new ExcepcionApi(HttpStatus.FORBIDDEN, "El operador solo puede autoasignarse casos");
+    }
 
     ReporteEntidad reporte = reporteRepositorio.findById(request.getReporteId())
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Reporte no encontrado"));
+    if (reporte.getEstado() != EstadoReporte.PENDIENTE) {
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Solo reportes PENDIENTE pueden derivarse a caso");
+    }
+    if (casoRepositorio.existsByReporteOrigenId(request.getReporteId())) {
+      throw new ExcepcionApi(HttpStatus.CONFLICT, "El reporte ya tiene un caso operativo");
+    }
+
     UsuarioEntidad responsable = usuarioRepositorio.findById(request.getResponsableId())
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Responsable no encontrado"));
+    if (responsable.getRol() != RolUsuario.OPERADOR) {
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "El responsable asignado debe tener rol OPERADOR");
+    }
+    if (responsable.getEstado() != EstadoUsuario.ACTIVO) {
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "El responsable asignado debe estar ACTIVO");
+    }
 
     CasoEntidad entity = new CasoEntidad();
     entity.setReporteOrigen(reporte);
@@ -84,6 +109,8 @@ public class CasoServicioImpl implements CasoServicio {
     UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
     CasoEntidad entity = casoRepositorio.findById(id)
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Caso no encontrado"));
+    validarAutorizacionCaso(actor, entity);
+    validarTransicionEstado(entity.getEstado(), request.getEstado());
 
     EstadoCaso estadoAnteriorCaso = entity.getEstado();
     EstadoReporte estadoAnteriorReporte = entity.getReporteOrigen().getEstado();
@@ -102,8 +129,8 @@ public class CasoServicioImpl implements CasoServicio {
 
     if (request.getEstado() == EstadoCaso.RESUELTO) {
       entity.setFechaCierre(LocalDateTime.now());
-      entity.getReporteOrigen().setEstado(EstadoReporte.RESUELTO);
     }
+    entity.getReporteOrigen().setEstado(estadoReporteSegunEstadoCaso(request.getEstado()));
 
     CasoEntidad saved = casoRepositorio.save(entity);
     guardarEvidencias(saved, evidencias);
@@ -155,18 +182,55 @@ public class CasoServicioImpl implements CasoServicio {
   @Override
   @Transactional(readOnly = true)
   public List<CasoRespuestaDto> listarTodos() {
+    UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
+    if (actor.getRol() == RolUsuario.OPERADOR) {
+      return casoRepositorio.findByResponsableId(actor.getId()).stream().map(casoMapeador::aRespuesta).toList();
+    }
     return casoRepositorio.findAll().stream().map(casoMapeador::aRespuesta).toList();
   }
 
   @Override
   @Transactional(readOnly = true)
   public List<CasoRespuestaDto> listarPorResponsable(Long responsableId) {
+    UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
+    if (actor.getRol() == RolUsuario.OPERADOR && !actor.getId().equals(responsableId)) {
+      throw new ExcepcionApi(HttpStatus.FORBIDDEN, "No puede ver casos de otro responsable");
+    }
     return casoRepositorio.findByResponsableId(responsableId).stream().map(casoMapeador::aRespuesta).toList();
   }
 
   @Override
   @Transactional(readOnly = true)
   public List<CasoRespuestaDto> listarPorEstado(EstadoCaso estado) {
+    UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
+    if (actor.getRol() == RolUsuario.OPERADOR) {
+      return casoRepositorio.findByResponsableId(actor.getId()).stream()
+          .filter(caso -> caso.getEstado() == estado)
+          .map(casoMapeador::aRespuesta)
+          .toList();
+    }
     return casoRepositorio.findByEstado(estado).stream().map(casoMapeador::aRespuesta).toList();
+  }
+
+  private void validarAutorizacionCaso(UsuarioEntidad actor, CasoEntidad caso) {
+    if (actor.getRol() == RolUsuario.OPERADOR && !actor.getId().equals(caso.getResponsable().getId())) {
+      throw new ExcepcionApi(HttpStatus.FORBIDDEN, "No puede actualizar un caso no asignado");
+    }
+  }
+
+  private void validarTransicionEstado(EstadoCaso actual, EstadoCaso nuevo) {
+    Set<EstadoCaso> permitidos = TRANSICIONES_PERMITIDAS.getOrDefault(actual, Set.of(actual));
+    if (!permitidos.contains(nuevo)) {
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Transicion de estado no permitida");
+    }
+  }
+
+  private EstadoReporte estadoReporteSegunEstadoCaso(EstadoCaso estadoCaso) {
+    return switch (estadoCaso) {
+      case EN_PROCESO -> EstadoReporte.EN_PROCESO;
+      case RESUELTO -> EstadoReporte.RESUELTO;
+      case ESCALADO -> EstadoReporte.ESCALADO;
+      case RECHAZADO -> EstadoReporte.RECHAZADO;
+    };
   }
 }

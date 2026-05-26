@@ -107,6 +107,23 @@ public class ReporteServicioImpl implements ReporteServicio {
 
   @Override
   @Transactional(readOnly = true)
+  public List<ReporteRespuestaDto> listarConFiltros(
+      Long usuarioId,
+      EstadoReporte estado,
+      String tipo,
+      String zona,
+      LocalDateTime fechaDesde,
+      LocalDateTime fechaHasta) {
+    String tipoNormalizado = normalizarFiltro(tipo);
+    String zonaNormalizada = normalizarFiltro(zona);
+    return reporteRepositorio.buscarConFiltros(usuarioId, estado, tipoNormalizado, zonaNormalizada, fechaDesde, fechaHasta)
+        .stream()
+        .map(reporteMapeador::aRespuesta)
+        .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public List<ReporteRespuestaDto> listarMisReportes(Long usuarioId) {
     return reporteRepositorio.findByUsuarioId(usuarioId).stream().map(reporteMapeador::aRespuesta).toList();
   }
@@ -150,5 +167,13 @@ public class ReporteServicioImpl implements ReporteServicio {
       return "AGUA_TURBIA";
     }
     return "OTRO";
+  }
+
+  private String normalizarFiltro(String valor) {
+    if (valor == null) {
+      return null;
+    }
+    String limpio = valor.trim();
+    return limpio.isEmpty() ? null : limpio;
   }
 }
