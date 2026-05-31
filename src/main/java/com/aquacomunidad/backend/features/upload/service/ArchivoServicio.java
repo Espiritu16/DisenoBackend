@@ -3,13 +3,14 @@ package com.aquacomunidad.backend.features.upload.service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.text.Normalizer;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,27 +20,30 @@ import org.springframework.web.multipart.MultipartFile;
 import com.aquacomunidad.backend.exception.ExcepcionApi;
 import com.aquacomunidad.backend.features.upload.dto.ArchivoSubidoItemDto;
 import com.aquacomunidad.backend.features.upload.dto.ArchivoSubidoRespuestaDto;
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
 
 @Service
 public class ArchivoServicio {
 
   private static final long MAX_BYTES = 10L * 1024 * 1024;
-  private static final Set<String> MIME_PERMITIDOS = Set.of("image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif");
-  private static final Path UPLOAD_ROOT = Path.of("uploads");
+  private static final Set<String> MIME_PERMITIDOS = Set.of("image/jpeg", "image/jpg", "image/png", "image/webp");
+  private static final Set<String> CARPETAS_PERMITIDAS = Set.of("reportes", "casos");
 
-  private final Cloudinary cloudinary;
+  private final Path uploadRoot;
+  private final int webpQuality;
+  private final WebpConverter webpConverter;
 
+  @Autowired
   public ArchivoServicio(
-      @Value("${cloudinary.cloud-name}") String cloudName,
-      @Value("${cloudinary.api-key}") String apiKey,
-      @Value("${cloudinary.api-secret}") String apiSecret) {
-    this.cloudinary = new Cloudinary(ObjectUtils.asMap(
-        "cloud_name", cloudName,
-        "api_key", apiKey,
-        "api_secret", apiSecret,
-        "secure", true));
+      @Value("${app.upload.dir:${UPLOAD_DIR:/app/uploads}}") String uploadDir,
+      @Value("${app.upload.webp-command:cwebp}") String webpCommand,
+      @Value("${app.upload.webp-quality:86}") int webpQuality) {
+    this(uploadDir, webpCommand, webpQuality, new CwebpConverter(webpCommand));
+  }
+
+  ArchivoServicio(String uploadDir, String webpCommand, int webpQuality, WebpConverter webpConverter) {
+    this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+    this.webpQuality = Math.max(1, Math.min(webpQuality, 100));
+    this.webpConverter = webpConverter;
   }
 
   public ArchivoSubidoRespuestaDto guardar(MultipartFile file, String carpeta) {
@@ -63,50 +67,44 @@ public class ArchivoServicio {
 
   private ArchivoSubidoItemDto subirUno(MultipartFile file, String carpeta) {
     validar(file);
+    String carpetaNormalizada = validarCarpeta(carpeta);
     String original = StringUtils.cleanPath(file.getOriginalFilename() == null ? "archivo" : file.getOriginalFilename());
     String nombreBase = sanitizar(original.replaceFirst("\\.[^.]+$", ""));
     String publicId = UUID.randomUUID() + "-" + nombreBase;
-    try {
-      Map<?, ?> response = cloudinary.uploader().upload(
-          file.getBytes(),
-          ObjectUtils.asMap(
-              "folder", "aquacomunidad/" + carpeta,
-              "public_id", publicId,
-              "overwrite", true,
-              "resource_type", "image"));
-      Object secureUrl = response.get("secure_url");
-      Object publicIdValue = response.get("public_id");
-      if (secureUrl == null) {
-        throw new ExcepcionApi(HttpStatus.INTERNAL_SERVER_ERROR, "Cloudinary no devolvio URL segura");
-      }
-      return ArchivoSubidoItemDto.builder()
-          .url(secureUrl.toString())
-          .build();
-    } catch (IOException ex) {
-      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "No se pudo leer la imagen");
-    } catch (ExcepcionApi ex) {
-      throw ex;
-    } catch (Exception ex) {
-      return guardarLocal(file, carpeta, publicId, original);
-    }
+    return guardarLocalWebp(file, carpetaNormalizada, publicId, original);
   }
 
-  private ArchivoSubidoItemDto guardarLocal(MultipartFile file, String carpeta, String publicId, String original) {
+  private ArchivoSubidoItemDto guardarLocalWebp(MultipartFile file, String carpeta, String publicId, String original) {
+    Path temporal = null;
     try {
       String extension = extensionDe(original);
-      String fileName = publicId + extension;
-      Path targetDir = UPLOAD_ROOT.resolve(carpeta).normalize();
+      String fileName = publicId + ".webp";
+      Path targetDir = uploadRoot.resolve(carpeta).normalize();
       Files.createDirectories(targetDir);
       Path target = targetDir.resolve(fileName).normalize();
       if (!target.startsWith(targetDir)) {
         throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Nombre de archivo invalido");
       }
-      Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+      if (".webp".equals(extension)) {
+        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+      } else {
+        temporal = Files.createTempFile(targetDir, publicId + "-", extension);
+        Files.copy(file.getInputStream(), temporal, StandardCopyOption.REPLACE_EXISTING);
+        webpConverter.convert(temporal, target, webpQuality);
+      }
       return ArchivoSubidoItemDto.builder()
           .url("/uploads/" + carpeta + "/" + fileName)
           .build();
     } catch (IOException ex) {
       throw new ExcepcionApi(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo guardar la imagen localmente");
+    } finally {
+      if (temporal != null) {
+        try {
+          Files.deleteIfExists(temporal);
+        } catch (IOException ignored) {
+          // No bloquea la subida si solo falla la limpieza del temporal.
+        }
+      }
     }
   }
 
@@ -116,7 +114,7 @@ public class ArchivoServicio {
       return ".jpg";
     }
     String extension = original.substring(index).toLowerCase();
-    return extension.matches("\\.(jpg|jpeg|png|webp|gif)") ? extension : ".jpg";
+    return extension.matches("\\.(jpg|jpeg|png|webp)") ? extension : ".jpg";
   }
 
   private void validar(MultipartFile file) {
@@ -128,8 +126,16 @@ public class ArchivoServicio {
     }
     String contentType = file.getContentType();
     if (contentType == null || !MIME_PERMITIDOS.contains(contentType.toLowerCase())) {
-      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Solo se permiten imagenes JPG, PNG, WEBP o GIF");
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Solo se permiten imagenes JPG, PNG o WEBP");
     }
+  }
+
+  private String validarCarpeta(String carpeta) {
+    String normalizada = sanitizar(carpeta);
+    if (!CARPETAS_PERMITIDAS.contains(normalizada)) {
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Carpeta de subida no permitida");
+    }
+    return normalizada;
   }
 
   private String sanitizar(String value) {
@@ -140,5 +146,40 @@ public class ArchivoServicio {
         .replaceAll("(^-|-$)", "")
         .toLowerCase();
     return normalized.isBlank() ? "archivo" : normalized;
+  }
+
+  @FunctionalInterface
+  interface WebpConverter {
+    void convert(Path source, Path target, int quality) throws IOException;
+  }
+
+  private static class CwebpConverter implements WebpConverter {
+    private final String command;
+
+    CwebpConverter(String command) {
+      this.command = command == null || command.isBlank() ? "cwebp" : command;
+    }
+
+    @Override
+    public void convert(Path source, Path target, int quality) throws IOException {
+      ProcessBuilder processBuilder = new ProcessBuilder(
+          command,
+          "-quiet",
+          "-q",
+          String.valueOf(quality),
+          source.toString(),
+          "-o",
+          target.toString());
+      Process process = processBuilder.start();
+      try {
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+          throw new IOException("cwebp termino con codigo " + exitCode);
+        }
+      } catch (InterruptedException ex) {
+        Thread.currentThread().interrupt();
+        throw new IOException("Conversion WebP interrumpida", ex);
+      }
+    }
   }
 }
