@@ -12,6 +12,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,7 @@ import com.aquacomunidad.backend.features.chatbot.entity.RolMensajeChatbot;
 import com.aquacomunidad.backend.features.chatbot.repository.ChatbotConversacionRepositorio;
 import com.aquacomunidad.backend.features.chatbot.repository.ChatbotMensajeRepositorio;
 import com.aquacomunidad.backend.features.chatbot.service.ChatbotServicio;
+import com.aquacomunidad.backend.features.chatbot.support.ContextoChatbotAquaComunidad;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -55,19 +57,22 @@ public class ChatbotServicioImpl implements ChatbotServicio {
   private final ReporteServicio reporteServicio;
   private final ChatbotConversacionRepositorio conversacionRepositorio;
   private final ChatbotMensajeRepositorio mensajeRepositorio;
+  private final ContextoChatbotAquaComunidad contextoChatbot;
 
   public ChatbotServicioImpl(
       @Value("${app.openai.api-key:}") String apiKey,
       @Value("${app.openai.model:gpt-5-mini}") String modelo,
       ReporteServicio reporteServicio,
       ChatbotConversacionRepositorio conversacionRepositorio,
-      ChatbotMensajeRepositorio mensajeRepositorio) {
+      ChatbotMensajeRepositorio mensajeRepositorio,
+      ContextoChatbotAquaComunidad contextoChatbot) {
     this.objectMapper = new ObjectMapper();
     this.apiKey = apiKey;
     this.modelo = modelo;
     this.reporteServicio = reporteServicio;
     this.conversacionRepositorio = conversacionRepositorio;
     this.mensajeRepositorio = mensajeRepositorio;
+    this.contextoChatbot = contextoChatbot;
     this.httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(8))
         .build();
@@ -163,9 +168,12 @@ public class ChatbotServicioImpl implements ChatbotServicio {
       return respuestaFueraDeAlcance();
     }
     if (esConsultaMisReportes(mensaje)) {
-      return responderMisReportes();
+      return responderMisReportes(mensaje);
     }
-    if (esPreguntaFrecuenteLocal(mensaje) || !StringUtils.hasText(apiKey)) {
+    if (contextoChatbot.esConsultaConceptualParaIa(mensaje) && !StringUtils.hasText(apiKey)) {
+      return respuestaIaNoDisponibleParaConsultaConceptual();
+    }
+    if (!StringUtils.hasText(apiKey)) {
       return respuestaLocal(mensaje);
     }
 
@@ -253,7 +261,7 @@ public class ChatbotServicioImpl implements ChatbotServicio {
   private String consultarOpenAi(ChatbotSolicitudDto solicitud) throws IOException, InterruptedException {
     ObjectNode body = objectMapper.createObjectNode();
     body.put("model", modelo);
-    body.put("instructions", instruccionesSistema());
+    body.put("instructions", contextoChatbot.instruccionesSistema());
     body.put("max_output_tokens", 900);
     body.put("input", construirInput(solicitud));
     ObjectNode reasoning = objectMapper.createObjectNode();
@@ -324,7 +332,13 @@ public class ChatbotServicioImpl implements ChatbotServicio {
   private ChatbotRespuestaDto respuestaLocal(String mensaje) {
     String normalizado = mensaje == null ? "" : mensaje.toLowerCase();
     String respuesta;
-    if (normalizado.contains("reporte") || normalizado.contains("incidencia") || normalizado.contains("fuga")) {
+    if (contextoChatbot.esConsultaSobreEstados(normalizado)) {
+      respuesta = contextoChatbot.respuestaGuiaEstadosReporte();
+    } else if (contextoChatbot.esConsultaSobreContacto(normalizado)) {
+      respuesta = contextoChatbot.respuestaContacto();
+    } else if (contextoChatbot.esConsultaSobreSistema(normalizado)) {
+      respuesta = contextoChatbot.respuestaSistema();
+    } else if (normalizado.contains("reporte") || normalizado.contains("incidencia") || normalizado.contains("fuga")) {
       respuesta = "Para hacer un reporte entra a Reportar, selecciona tu distrito, marca el punto en el mapa, elige el tipo de incidencia, agrega una descripcion y adjunta fotos si las tienes. Luego revisa el resumen y envia el reporte.";
     } else if (normalizado.contains("registr")) {
       respuesta = "Para registrarte presiona Registrarse en la cabecera, coloca tu nombre, correo y una contrasena segura. Despues podras iniciar sesion para enviar reportes y hacer seguimiento.";
@@ -344,7 +358,15 @@ public class ChatbotServicioImpl implements ChatbotServicio {
         false);
   }
 
-  private ChatbotRespuestaDto responderMisReportes() {
+  private ChatbotRespuestaDto respuestaIaNoDisponibleParaConsultaConceptual() {
+    return new ChatbotRespuestaDto(
+        contextoChatbot.respuestaIaNoDisponibleParaConsultaConceptual(),
+        "local",
+        "ia-required",
+        false);
+  }
+
+  private ChatbotRespuestaDto responderMisReportes(String mensaje) {
     Long usuarioId = usuarioIdAutenticadoSeguro();
     if (usuarioId == null) {
       return new ChatbotRespuestaDto(
@@ -367,6 +389,17 @@ public class ChatbotServicioImpl implements ChatbotServicio {
           false);
     }
 
+    Long reporteId = extraerReporteId(mensaje);
+    if (reporteId != null) {
+      return responderReportePorCodigo(reportes, reporteId);
+    }
+    if (esConsultaUltimoReporte(mensaje)) {
+      return responderUltimoReporte(reportes);
+    }
+    if (esConsultaCantidadReportes(mensaje)) {
+      return responderResumenReportes(reportes);
+    }
+
     StringBuilder respuesta = new StringBuilder("Estos son tus reportes recientes:\n");
     reportes.stream()
         .sorted((a, b) -> b.getFechaCreacion().compareTo(a.getFechaCreacion()))
@@ -379,11 +412,109 @@ public class ChatbotServicioImpl implements ChatbotServicio {
             .append(" en ")
             .append(reporte.getZona())
             .append(" - ")
-            .append(etiquetaEstado(reporte.getEstado().name()))
+            .append(contextoChatbot.etiquetaEstadoReporte(reporte.getEstado().name()))
             .append(".\n"));
     respuesta.append("Para revisar la trazabilidad completa, entra a Mis Reportes.");
     return new ChatbotRespuestaDto(
         respuesta.toString(),
+        "local",
+        "reportes-service",
+        false,
+        null,
+        null,
+        false,
+        List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
+  }
+
+  private ChatbotRespuestaDto responderResumenReportes(List<ReporteRespuestaDto> reportes) {
+    long pendientes = contarPorEstado(reportes, "PENDIENTE");
+    long enProceso = contarPorEstado(reportes, "EN_PROCESO");
+    long resueltos = contarPorEstado(reportes, "RESUELTO");
+    long duplicados = contarPorEstado(reportes, "DUPLICADO");
+    long rechazados = contarPorEstado(reportes, "RECHAZADO");
+    long escalados = contarPorEstado(reportes, "ESCALADO");
+
+    StringBuilder respuesta = new StringBuilder()
+        .append("Tienes ")
+        .append(reportes.size())
+        .append(" ")
+        .append(pluralizar(reportes.size(), "reporte", "reportes"))
+        .append(": ")
+        .append(fragmentoCantidad(pendientes, "pendiente", "pendientes"))
+        .append(", ")
+        .append(fragmentoCantidad(enProceso, "en proceso", "en proceso"))
+        .append(" y ")
+        .append(fragmentoCantidad(resueltos, "resuelto", "resueltos"));
+    if (duplicados > 0 || rechazados > 0 || escalados > 0) {
+      respuesta
+          .append(". Tambien tienes ")
+          .append(fragmentoCantidad(duplicados, "duplicado", "duplicados"))
+          .append(", ")
+          .append(fragmentoCantidad(rechazados, "rechazado", "rechazados"))
+          .append(" y ")
+          .append(fragmentoCantidad(escalados, "escalado", "escalados"));
+    }
+    respuesta.append(".");
+
+    return new ChatbotRespuestaDto(
+        respuesta.toString(),
+        "local",
+        "reportes-service",
+        false,
+        null,
+        null,
+        false,
+        List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
+  }
+
+  private ChatbotRespuestaDto responderUltimoReporte(List<ReporteRespuestaDto> reportes) {
+    ReporteRespuestaDto ultimo = reportes.stream()
+        .max((a, b) -> a.getFechaCreacion().compareTo(b.getFechaCreacion()))
+        .orElseThrow();
+    String estado = contextoChatbot.etiquetaEstadoReporte(ultimo.getEstado().name());
+    String estadoDetalle = ultimo.getEstado().name().equals("RESUELTO")
+        ? "ya esta resuelto"
+        : "esta " + estado.toLowerCase();
+    String respuesta = "Tu ultimo reporte es REP-" + ultimo.getId()
+        + ": " + ultimo.getTipo()
+        + " en " + ultimo.getZona()
+        + " y " + estadoDetalle + ". "
+        + contextoChatbot.explicacionEstadoReporte(ultimo.getEstado().name());
+    return new ChatbotRespuestaDto(
+        respuesta,
+        "local",
+        "reportes-service",
+        false,
+        null,
+        null,
+        false,
+        List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
+  }
+
+  private ChatbotRespuestaDto responderReportePorCodigo(List<ReporteRespuestaDto> reportes, Long reporteId) {
+    ReporteRespuestaDto reporte = reportes.stream()
+        .filter(item -> item.getId().equals(reporteId))
+        .findFirst()
+        .orElse(null);
+    if (reporte == null) {
+      return new ChatbotRespuestaDto(
+          "No encontre el reporte REP-" + reporteId + " entre tus reportes. Verifica el numero de consulta en Mis Reportes.",
+          "local",
+          "reportes-service",
+          false,
+          null,
+          null,
+          false,
+          List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
+    }
+
+    String respuesta = "El reporte REP-" + reporte.getId()
+        + " (" + reporte.getTipo()
+        + " en " + reporte.getZona()
+        + ") esta en estado " + contextoChatbot.etiquetaEstadoReporte(reporte.getEstado().name()) + ". "
+        + contextoChatbot.explicacionEstadoReporte(reporte.getEstado().name());
+    return new ChatbotRespuestaDto(
+        respuesta,
         "local",
         "reportes-service",
         false,
@@ -440,29 +571,23 @@ public class ChatbotServicioImpl implements ChatbotServicio {
   private boolean esConsultaMisReportes(String mensaje) {
     String normalizado = normalizar(mensaje);
     return contieneAlguno(normalizado, "mis reportes", "reportes tengo", "que reportes", "estado de mis reportes",
-        "ver mis incidencias", "mis incidencias", "seguimiento de mis reportes");
+        "ver mis incidencias", "mis incidencias", "seguimiento de mis reportes")
+        || esConsultaCantidadReportes(normalizado)
+        || esConsultaUltimoReporte(normalizado)
+        || extraerReporteId(normalizado) != null;
   }
 
-  private boolean esPreguntaFrecuenteLocal(String mensaje) {
+  private boolean esConsultaCantidadReportes(String mensaje) {
     String normalizado = normalizar(mensaje);
-    boolean preguntaOperativa = contieneAlguno(normalizado, "como", "cómo", "donde", "dónde", "quiero", "necesito");
-    return preguntaOperativa && contieneAlguno(normalizado,
-        "hacer un reporte",
-        "crear un reporte",
-        "reportar",
-        "registro",
-        "registrarme",
-        "registrar",
-        "iniciar sesion",
-        "iniciar sesión",
-        "consultar",
-        "seguimiento",
-        "contacto",
-        "soporte",
-        "emergencia",
-        "adjuntar",
-        "foto",
-        "evidencia");
+    return contieneAlguno(normalizado, "cuantos reportes", "cuántos reportes", "cantidad de reportes",
+        "total de reportes", "reportes pendientes", "pendientes tengo", "cantidad por estado");
+  }
+
+  private boolean esConsultaUltimoReporte(String mensaje) {
+    String normalizado = normalizar(mensaje);
+    return contieneAlguno(normalizado, "ultimo reporte", "último reporte", "reporte mas reciente",
+        "reporte más reciente", "lo ultimo que reporte", "lo último que reporté", "ya esta acabado",
+        "ya está acabado", "ya esta resuelto", "ya está resuelto");
   }
 
   private boolean esPreguntaFueraDeAlcance(String mensaje) {
@@ -491,6 +616,12 @@ public class ChatbotServicioImpl implements ChatbotServicio {
         "contacto",
         "soporte",
         "emergencia",
+        "telefono",
+        "teléfono",
+        "whatsapp",
+        "horario",
+        "cobertura",
+        "empresa",
         "foto",
         "evidencia",
         "distrito",
@@ -525,32 +656,31 @@ public class ChatbotServicioImpl implements ChatbotServicio {
     return false;
   }
 
+  private Long extraerReporteId(String texto) {
+    var matcher = Pattern.compile("\\b(?:rep-?|reporte\\s+)(\\d+)\\b", Pattern.CASE_INSENSITIVE)
+        .matcher(texto == null ? "" : texto);
+    if (!matcher.find()) {
+      return null;
+    }
+    return Long.valueOf(matcher.group(1));
+  }
+
   private String normalizar(String texto) {
     return texto == null ? "" : texto.toLowerCase().trim();
   }
 
-  private String etiquetaEstado(String estado) {
-    return switch (estado) {
-      case "PENDIENTE" -> "Pendiente";
-      case "EN_PROCESO" -> "En proceso";
-      case "RESUELTO" -> "Resuelto";
-      case "DUPLICADO" -> "Duplicado";
-      case "RECHAZADO" -> "Rechazado";
-      case "ESCALADO" -> "Escalado";
-      default -> estado;
-    };
+  private long contarPorEstado(List<ReporteRespuestaDto> reportes, String estado) {
+    return reportes.stream()
+        .filter(reporte -> reporte.getEstado().name().equals(estado))
+        .count();
   }
 
-  private String instruccionesSistema() {
-    return """
-        Eres el asistente virtual de AquaComunidad, una plataforma ciudadana para reportar incidencias de agua.
-        Responde siempre en espanol, de forma breve, clara y amable.
-        Ayuda solo con temas de la plataforma: registro, inicio de sesion, reportar incidencias, adjuntar evidencia, consultar reportes, trazabilidad, contacto y uso general.
-        No inventes estados, numeros de reporte ni datos personales.
-        Si el usuario necesita crear un reporte, guialo a la ruta Reportar y menciona: distrito, ubicacion en mapa, tipo de incidencia, descripcion, evidencia y resumen antes de enviar.
-        Si pregunta por seguimiento, guialo a Mis Reportes con su numero de consulta.
-        Si pide soporte urgente, recomiendale ir a Contacto y usar el canal de emergencias.
-        Si pregunta algo fuera del sistema, indica que solo puedes ayudar con AquaComunidad.
-        """;
+  private String fragmentoCantidad(long cantidad, String singular, String plural) {
+    return cantidad + " " + pluralizar(cantidad, singular, plural);
   }
+
+  private String pluralizar(long cantidad, String singular, String plural) {
+    return cantidad == 1 ? singular : plural;
+  }
+
 }

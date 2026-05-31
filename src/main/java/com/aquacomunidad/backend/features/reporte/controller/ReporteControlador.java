@@ -18,6 +18,8 @@ import com.aquacomunidad.backend.common.enums.EstadoReporte;
 import com.aquacomunidad.backend.common.response.RespuestaApi;
 import com.aquacomunidad.backend.common.enums.RolUsuario;
 import com.aquacomunidad.backend.features.historial.dto.DetalleTrazabilidadReporteDto;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenDto;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenItemDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteSolicitudDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
@@ -62,6 +64,35 @@ public class ReporteControlador {
     return ResponseEntity.ok(RespuestaApi.ok(
         "Mis reportes listados",
         reporteServicio.listarMisReportes(usuarioId),
+        httpRequest.getRequestURI()));
+  }
+
+  @GetMapping("/mis-reportes/resumen")
+  public ResponseEntity<RespuestaApi<ReporteResumenDto>> obtenerResumenMisReportes(HttpServletRequest httpRequest) {
+    Long usuarioId = SeguridadContextoUtil.idUsuarioAutenticado();
+    return ResponseEntity.ok(RespuestaApi.ok(
+        "Resumen de mis reportes",
+        reporteServicio.obtenerResumenMisReportes(usuarioId),
+        httpRequest.getRequestURI()));
+  }
+
+  @GetMapping("/mis-reportes/ultimo")
+  public ResponseEntity<RespuestaApi<ReporteResumenItemDto>> obtenerUltimoReporte(HttpServletRequest httpRequest) {
+    Long usuarioId = SeguridadContextoUtil.idUsuarioAutenticado();
+    return ResponseEntity.ok(RespuestaApi.ok(
+        "Ultimo reporte",
+        reporteServicio.obtenerUltimoReporte(usuarioId),
+        httpRequest.getRequestURI()));
+  }
+
+  @GetMapping("/mis-reportes/{id}")
+  public ResponseEntity<RespuestaApi<ReporteRespuestaDto>> obtenerMiReporte(
+      @PathVariable Long id,
+      HttpServletRequest httpRequest) {
+    Long usuarioId = SeguridadContextoUtil.idUsuarioAutenticado();
+    return ResponseEntity.ok(RespuestaApi.ok(
+        "Mi reporte obtenido",
+        reporteServicio.obtenerMiReporte(id, usuarioId),
         httpRequest.getRequestURI()));
   }
 

@@ -14,6 +14,8 @@ import com.aquacomunidad.backend.features.caso.repository.CasoRepositorio;
 import com.aquacomunidad.backend.features.historial.dto.DetalleTrazabilidadReporteDto;
 import com.aquacomunidad.backend.features.historial.service.HistorialEstadoServicio;
 import com.aquacomunidad.backend.features.reporte.entity.CatalogoTipoIncidenciaEntidad;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenDto;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenItemDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteSolicitudDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
@@ -130,6 +132,44 @@ public class ReporteServicioImpl implements ReporteServicio {
 
   @Override
   @Transactional(readOnly = true)
+  public ReporteResumenDto obtenerResumenMisReportes(Long usuarioId) {
+    List<ReporteEntidad> reportes = reporteRepositorio.findByUsuarioId(usuarioId);
+    ReporteEntidad ultimo = ultimoReporte(reportes);
+
+    return ReporteResumenDto.builder()
+        .total(reportes.size())
+        .pendientes(contarPorEstado(reportes, EstadoReporte.PENDIENTE))
+        .enProceso(contarPorEstado(reportes, EstadoReporte.EN_PROCESO))
+        .resueltos(contarPorEstado(reportes, EstadoReporte.RESUELTO))
+        .duplicados(contarPorEstado(reportes, EstadoReporte.DUPLICADO))
+        .rechazados(contarPorEstado(reportes, EstadoReporte.RECHAZADO))
+        .escalados(contarPorEstado(reportes, EstadoReporte.ESCALADO))
+        .ultimoReporte(ultimo == null ? null : aResumenItem(ultimo))
+        .build();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public ReporteResumenItemDto obtenerUltimoReporte(Long usuarioId) {
+    return reporteRepositorio.findByUsuarioId(usuarioId).stream()
+        .max((a, b) -> a.getFechaCreacion().compareTo(b.getFechaCreacion()))
+        .map(this::aResumenItem)
+        .orElse(null);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public ReporteRespuestaDto obtenerMiReporte(Long reporteId, Long usuarioId) {
+    ReporteEntidad reporte = reporteRepositorio.findById(reporteId)
+        .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Reporte no encontrado"));
+    if (!reporte.getUsuario().getId().equals(usuarioId)) {
+      throw new ExcepcionApi(HttpStatus.FORBIDDEN, "No puede ver reportes de otro usuario");
+    }
+    return reporteMapeador.aRespuesta(reporte);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public DetalleTrazabilidadReporteDto obtenerDetalleTrazabilidad(Long reporteId, Long usuarioId, boolean esCiudadano) {
     ReporteEntidad reporte = reporteRepositorio.findById(reporteId)
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Reporte no encontrado"));
@@ -175,5 +215,29 @@ public class ReporteServicioImpl implements ReporteServicio {
     }
     String limpio = valor.trim();
     return limpio.isEmpty() ? null : limpio;
+  }
+
+  private long contarPorEstado(List<ReporteEntidad> reportes, EstadoReporte estado) {
+    return reportes.stream()
+        .filter(reporte -> reporte.getEstado() == estado)
+        .count();
+  }
+
+  private ReporteEntidad ultimoReporte(List<ReporteEntidad> reportes) {
+    return reportes.stream()
+        .max((a, b) -> a.getFechaCreacion().compareTo(b.getFechaCreacion()))
+        .orElse(null);
+  }
+
+  private ReporteResumenItemDto aResumenItem(ReporteEntidad reporte) {
+    return ReporteResumenItemDto.builder()
+        .id(reporte.getId())
+        .codigo("REP-" + reporte.getId())
+        .tipo(reporte.getTipo().getNombre())
+        .zona(reporte.getZona())
+        .estado(reporte.getEstado())
+        .fechaCreacion(reporte.getFechaCreacion())
+        .fechaActualizacion(reporte.getFechaActualizacion())
+        .build();
   }
 }

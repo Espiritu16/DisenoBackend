@@ -25,6 +25,7 @@ import com.aquacomunidad.backend.features.chatbot.dto.ChatbotSolicitudDto;
 import com.aquacomunidad.backend.features.chatbot.entity.ChatbotConversacionEntidad;
 import com.aquacomunidad.backend.features.chatbot.entity.ChatbotMensajeEntidad;
 import com.aquacomunidad.backend.features.chatbot.entity.RolMensajeChatbot;
+import com.aquacomunidad.backend.features.chatbot.support.ContextoChatbotAquaComunidad;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -45,6 +46,62 @@ class ChatbotServicioImplTest {
     assertThat(respuesta.iaDisponible()).isFalse();
     assertThat(respuesta.proveedor()).isEqualTo("local");
     assertThat(respuesta.respuesta()).contains("Reportar");
+  }
+
+  @Test
+  void explicaCuandoUnReporteYaEstaTerminadoSinDarRespuestaGenerica() {
+    ChatbotServicioImpl servicio = servicio("", Mockito.mock(ReporteServicio.class));
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Como se que mi reporte ya esta terminado?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta())
+        .contains("Resuelto")
+        .contains("Pendiente")
+        .contains("En proceso");
+  }
+
+  @Test
+  void explicaQueEsAquaComunidadDesdeElContextoDelSistema() {
+    ChatbotServicioImpl servicio = servicio("", Mockito.mock(ReporteServicio.class));
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Que es AquaComunidad?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta())
+        .contains("plataforma ciudadana")
+        .contains("incidencias de agua")
+        .contains("trazabilidad");
+  }
+
+  @Test
+  void respondeCanalesDeContactoDesdeElContextoDelSistema() {
+    ChatbotServicioImpl servicio = servicio("", Mockito.mock(ReporteServicio.class));
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Cual es el telefono y WhatsApp de soporte?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta())
+        .contains("+51 999 000 111")
+        .contains("+51 944 555 221")
+        .contains("Lun - Sab")
+        .contains("Emergencias 24/7");
+  }
+
+  @Test
+  void noRespondeConsultasConceptualesDeIncidenciasComoFallbackGenerico() {
+    ChatbotServicioImpl servicio = servicio("", Mockito.mock(ReporteServicio.class));
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Que es una fuga?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta())
+        .contains("requiere el asistente con IA")
+        .doesNotContain("Para hacer un reporte entra a Reportar");
   }
 
   @Test
@@ -72,6 +129,58 @@ class ChatbotServicioImplTest {
     assertThat(respuesta.iaDisponible()).isFalse();
     assertThat(respuesta.proveedor()).isEqualTo("local");
     assertThat(respuesta.respuesta()).contains("REP-13", "Pendiente", "REP-14", "Resuelto");
+  }
+
+  @Test
+  void respondeCantidadDeReportesPorEstadoDesdeDatosDelUsuario() {
+    ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
+    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
+        reporte(13L, "Fuga", "Ate", EstadoReporte.PENDIENTE),
+        reporte(14L, "Baja presion", "San Miguel", EstadoReporte.PENDIENTE),
+        reporte(15L, "Corte", "Miraflores", EstadoReporte.EN_PROCESO),
+        reporte(16L, "Fuga", "Cercado de Lima", EstadoReporte.RESUELTO)));
+    ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
+    autenticarCiudadano(10L);
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Me puedes decir la cantidad de reportes pendientes?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta()).contains("Tienes 4 reportes", "2 pendientes", "1 en proceso", "1 resuelto");
+  }
+
+  @Test
+  void respondeSiUltimoReporteYaEstaAcabado() {
+    ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
+    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
+        reporte(20L, "Fuga", "Ate", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-30T08:00:00")),
+        reporte(21L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T09:00:00"))));
+    ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
+    autenticarCiudadano(10L);
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Mi ultimo reporte ya esta acabado?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta()).contains("REP-21", "Baja presion", "San Miguel", "ya esta resuelto");
+    assertThat(respuesta.respuesta()).contains("terminado");
+  }
+
+  @Test
+  void respondeEstadoDeReportePorCodigo() {
+    ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
+    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
+        reporte(20L, "Fuga", "Ate", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-30T08:00:00")),
+        reporte(21L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T09:00:00"))));
+    ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
+    autenticarCiudadano(10L);
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("Como va mi REP-21?", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.proveedor()).isEqualTo("local");
+    assertThat(respuesta.respuesta()).contains("REP-21", "Resuelto", "Baja presion", "San Miguel");
+    assertThat(respuesta.respuesta()).contains("atendido y cerrado");
   }
 
   @Test
@@ -123,6 +232,10 @@ class ChatbotServicioImplTest {
   }
 
   private ReporteRespuestaDto reporte(Long id, String tipo, String zona, EstadoReporte estado) {
+    return reporte(id, tipo, zona, estado, LocalDateTime.now());
+  }
+
+  private ReporteRespuestaDto reporte(Long id, String tipo, String zona, EstadoReporte estado, LocalDateTime fechaCreacion) {
     return ReporteRespuestaDto.builder()
         .id(id)
         .usuarioId(10L)
@@ -134,8 +247,8 @@ class ChatbotServicioImplTest {
         .lat(BigDecimal.ZERO)
         .lng(BigDecimal.ZERO)
         .posibleDuplicado(false)
-        .fechaCreacion(LocalDateTime.now())
-        .fechaActualizacion(LocalDateTime.now())
+        .fechaCreacion(fechaCreacion)
+        .fechaActualizacion(fechaCreacion)
         .fotoUrls(List.of())
         .build();
   }
@@ -146,7 +259,8 @@ class ChatbotServicioImplTest {
         "gpt-5-mini",
         reporteServicio,
         Mockito.mock(ChatbotConversacionRepositorio.class),
-        Mockito.mock(ChatbotMensajeRepositorio.class));
+        Mockito.mock(ChatbotMensajeRepositorio.class),
+        new ContextoChatbotAquaComunidad());
   }
 
   private ChatbotServicioImpl servicio(
@@ -159,7 +273,8 @@ class ChatbotServicioImplTest {
         "gpt-5-mini",
         reporteServicio,
         conversacionRepositorio,
-        mensajeRepositorio);
+        mensajeRepositorio,
+        new ContextoChatbotAquaComunidad());
   }
 
   private void autenticarCiudadano(Long id) {
