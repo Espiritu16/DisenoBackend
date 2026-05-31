@@ -21,7 +21,7 @@ public class ConfiguracionWeb implements WebMvcConfigurer {
   public ConfiguracionWeb(
       @Value("${app.upload.dir:${UPLOAD_DIR:/app/uploads}}") String uploadDir,
       @Value("${app.upload.cache.max-age-seconds:2592000}") long cacheMaxAgeSeconds,
-      @Value("${app.cors.allowed-origin-patterns:https://diseno-frontend.vercel.app,https://proyectoutp.com,http://proyectoutp.com}") String[] allowedOriginPatterns) {
+      @Value("${app.cors.allowed-origin-patterns:https://diseno-frontend.vercel.app,https://proyectoutp.com,http://proyectoutp.com,http://localhost:*,https://localhost:*,http://127.0.0.1:*,https://127.0.0.1:*}") String[] allowedOriginPatterns) {
     this.uploadDir = uploadDir;
     this.cacheMaxAgeSeconds = Math.max(cacheMaxAgeSeconds, 0);
     this.allowedOriginPatterns = allowedOriginPatterns;

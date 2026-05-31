@@ -54,11 +54,20 @@ class ConfiguracionWebCorsTest {
   }
 
   @Test
-  void noPermiteLocalhostPorDefecto() throws Exception {
+  void permiteLocalhostConCualquierPuerto() throws Exception {
     mockMvc.perform(options("/api/v1/auth/login")
         .header("Origin", "http://localhost:4200")
         .header("Access-Control-Request-Method", "POST"))
-        .andExpect(status().isForbidden())
-        .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+        .andExpect(status().isOk())
+        .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:4200"));
+  }
+
+  @Test
+  void permiteLoopbackConCualquierPuerto() throws Exception {
+    mockMvc.perform(options("/api/v1/auth/login")
+        .header("Origin", "http://127.0.0.1:5173")
+        .header("Access-Control-Request-Method", "POST"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Access-Control-Allow-Origin", "http://127.0.0.1:5173"));
   }
 }
