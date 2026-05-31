@@ -382,6 +382,7 @@ flowchart TB
 - `DB_URL`: URL JDBC de MySQL.
 - `DB_USERNAME`: usuario de MySQL.
 - `DB_PASSWORD`: password de MySQL.
+- `CORS_ALLOWED_ORIGIN_PATTERNS`: origenes permitidos para el frontend.
 - `MAIL_USERNAME`: correo Gmail usado por SMTP.
 - `MAIL_APP_PASSWORD`: password de aplicacion Gmail.
 - `APP_JWT_SECRETO`: secreto JWT HS256.
@@ -389,9 +390,10 @@ flowchart TB
 - `APP_JWT_REFRESH_EXPIRACION_SEGUNDOS`: expiracion refresh token (default 2592000).
 - `OPENAI_API_KEY`: clave de OpenAI para activar el chatbot con IA.
 - `OPENAI_MODEL`: modelo del chatbot (default `gpt-5-mini`).
-- `CLOUDINARY_CLOUD_NAME`: cloud name de Cloudinary.
-- `CLOUDINARY_API_KEY`: API key de Cloudinary.
-- `CLOUDINARY_API_SECRET`: API secret de Cloudinary.
+- `UPLOAD_DIR`: directorio local donde se guardan las imagenes (default `/app/uploads`).
+- `WEBP_COMMAND`: comando para convertir imagenes a WebP (default `cwebp`).
+- `WEBP_QUALITY`: calidad WebP de salida entre 1 y 100 (default `86`).
+- `UPLOAD_CACHE_MAX_AGE_SECONDS`: cache publico para `/uploads/**` (default `2592000`).
 
 ### Configuracion de BD
 El backend carga variables desde `DisenoBackend/.env` en ejecucion local. Crea tu archivo local desde la plantilla:

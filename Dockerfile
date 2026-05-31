@@ -15,7 +15,10 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-RUN useradd -m -u 1001 springuser \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends webp \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1001 springuser \
     && mkdir -p /app/uploads \
     && chown -R springuser:springuser /app/uploads
 
