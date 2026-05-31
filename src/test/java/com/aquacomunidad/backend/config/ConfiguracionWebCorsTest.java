@@ -27,21 +27,30 @@ class ConfiguracionWebCorsTest {
   }
 
   @Test
-  void permiteFrontendDelVps() throws Exception {
+  void permiteDominioDelVpsConHttp() throws Exception {
     mockMvc.perform(options("/api/v1/auth/login")
-        .header("Origin", "http://85.239.248.109")
+        .header("Origin", "http://proyectoutp.com")
         .header("Access-Control-Request-Method", "POST"))
         .andExpect(status().isOk())
-        .andExpect(header().string("Access-Control-Allow-Origin", "http://85.239.248.109"));
+        .andExpect(header().string("Access-Control-Allow-Origin", "http://proyectoutp.com"));
   }
 
   @Test
-  void permiteFrontendDelVpsConHttps() throws Exception {
+  void permiteDominioDelVpsConHttps() throws Exception {
     mockMvc.perform(options("/api/v1/auth/login")
-        .header("Origin", "https://85.239.248.109")
+        .header("Origin", "https://proyectoutp.com")
         .header("Access-Control-Request-Method", "POST"))
         .andExpect(status().isOk())
-        .andExpect(header().string("Access-Control-Allow-Origin", "https://85.239.248.109"));
+        .andExpect(header().string("Access-Control-Allow-Origin", "https://proyectoutp.com"));
+  }
+
+  @Test
+  void noPermiteIpDelVpsPorDefecto() throws Exception {
+    mockMvc.perform(options("/api/v1/auth/login")
+        .header("Origin", "http://85.239.248.109")
+        .header("Access-Control-Request-Method", "POST"))
+        .andExpect(status().isForbidden())
+        .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
   }
 
   @Test
