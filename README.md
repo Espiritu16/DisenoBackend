@@ -382,6 +382,7 @@ flowchart TB
 - `DB_URL`: URL JDBC de MySQL.
 - `DB_USERNAME`: usuario de MySQL.
 - `DB_PASSWORD`: password de MySQL.
+- `CORS_ALLOWED_ORIGIN_PATTERNS`: origenes permitidos para el frontend.
 - `MAIL_USERNAME`: correo Gmail usado por SMTP.
 - `MAIL_APP_PASSWORD`: password de aplicacion Gmail.
 - `APP_JWT_SECRETO`: secreto JWT HS256.
