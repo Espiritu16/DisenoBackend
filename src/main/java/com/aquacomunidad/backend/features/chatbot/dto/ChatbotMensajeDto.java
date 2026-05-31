@@ -10,6 +10,6 @@ public record ChatbotMensajeDto(
     String rol,
 
     @NotBlank(message = "El contenido del mensaje es obligatorio")
-    @Size(max = 700, message = "El contenido del mensaje no debe superar 700 caracteres")
+    @Size(max = 2500, message = "El contenido del mensaje no debe superar 2500 caracteres")
     String contenido) {
 }
