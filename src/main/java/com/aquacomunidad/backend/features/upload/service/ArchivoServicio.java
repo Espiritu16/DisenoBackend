@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Set;
@@ -28,22 +27,38 @@ public class ArchivoServicio {
   private static final Set<String> MIME_PERMITIDOS = Set.of("image/jpeg", "image/jpg", "image/png", "image/webp");
   private static final Set<String> CARPETAS_PERMITIDAS = Set.of("reportes", "casos");
 
-  private final Path uploadRoot;
+  private final Path tempRoot;
   private final int webpQuality;
   private final WebpConverter webpConverter;
+  private final ArchivoAlmacenamiento almacenamiento;
+  private final String publicBaseUrl;
 
   @Autowired
   public ArchivoServicio(
       @Value("${app.upload.dir:${UPLOAD_DIR:/app/uploads}}") String uploadDir,
       @Value("${app.upload.webp-command:cwebp}") String webpCommand,
-      @Value("${app.upload.webp-quality:86}") int webpQuality) {
-    this(uploadDir, webpCommand, webpQuality, new CwebpConverter(webpCommand));
+      @Value("${app.upload.webp-quality:86}") int webpQuality,
+      @Value("${app.upload.public-base-url:${UPLOAD_PUBLIC_BASE_URL:/uploads}}") String publicBaseUrl,
+      ArchivoAlmacenamiento almacenamiento) {
+    this(uploadDir, webpCommand, webpQuality, new CwebpConverter(webpCommand), almacenamiento, publicBaseUrl);
   }
 
   ArchivoServicio(String uploadDir, String webpCommand, int webpQuality, WebpConverter webpConverter) {
-    this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+    this(uploadDir, webpCommand, webpQuality, webpConverter, new ArchivoAlmacenamientoLocal(uploadDir), "/uploads");
+  }
+
+  ArchivoServicio(
+      String uploadDir,
+      String webpCommand,
+      int webpQuality,
+      WebpConverter webpConverter,
+      ArchivoAlmacenamiento almacenamiento,
+      String publicBaseUrl) {
+    this.tempRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
     this.webpQuality = Math.max(1, Math.min(webpQuality, 100));
     this.webpConverter = webpConverter;
+    this.almacenamiento = almacenamiento;
+    this.publicBaseUrl = limpiarBaseUrl(publicBaseUrl);
   }
 
   public ArchivoSubidoRespuestaDto guardar(MultipartFile file, String carpeta) {
@@ -71,32 +86,34 @@ public class ArchivoServicio {
     String original = StringUtils.cleanPath(file.getOriginalFilename() == null ? "archivo" : file.getOriginalFilename());
     String nombreBase = sanitizar(original.replaceFirst("\\.[^.]+$", ""));
     String publicId = UUID.randomUUID() + "-" + nombreBase;
-    return guardarLocalWebp(file, carpetaNormalizada, publicId, original);
+    return guardarWebp(file, carpetaNormalizada, publicId, original);
   }
 
-  private ArchivoSubidoItemDto guardarLocalWebp(MultipartFile file, String carpeta, String publicId, String original) {
+  private ArchivoSubidoItemDto guardarWebp(MultipartFile file, String carpeta, String publicId, String original) {
     Path temporal = null;
     try {
       String extension = extensionDe(original);
       String fileName = publicId + ".webp";
-      Path targetDir = uploadRoot.resolve(carpeta).normalize();
-      Files.createDirectories(targetDir);
-      Path target = targetDir.resolve(fileName).normalize();
-      if (!target.startsWith(targetDir)) {
-        throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Nombre de archivo invalido");
-      }
+      String rutaRelativa = carpeta + "/" + fileName;
+      Files.createDirectories(tempRoot);
+      temporal = Files.createTempFile(tempRoot, publicId + "-", ".webp");
       if (".webp".equals(extension)) {
-        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        file.transferTo(temporal);
       } else {
-        temporal = Files.createTempFile(targetDir, publicId + "-", extension);
-        Files.copy(file.getInputStream(), temporal, StandardCopyOption.REPLACE_EXISTING);
-        webpConverter.convert(temporal, target, webpQuality);
+        Path originalTemporal = Files.createTempFile(tempRoot, publicId + "-original-", extension);
+        try {
+          file.transferTo(originalTemporal);
+          webpConverter.convert(originalTemporal, temporal, webpQuality);
+        } finally {
+          Files.deleteIfExists(originalTemporal);
+        }
       }
+      almacenamiento.guardar(temporal, rutaRelativa);
       return ArchivoSubidoItemDto.builder()
-          .url("/uploads/" + carpeta + "/" + fileName)
+          .url(publicBaseUrl + "/" + rutaRelativa)
           .build();
-    } catch (IOException ex) {
-      throw new ExcepcionApi(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo guardar la imagen localmente");
+    } catch (Exception ex) {
+      throw new ExcepcionApi(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo guardar la imagen");
     } finally {
       if (temporal != null) {
         try {
@@ -146,6 +163,14 @@ public class ArchivoServicio {
         .replaceAll("(^-|-$)", "")
         .toLowerCase();
     return normalized.isBlank() ? "archivo" : normalized;
+  }
+
+  private String limpiarBaseUrl(String value) {
+    String base = value == null || value.isBlank() ? "/uploads" : value.trim();
+    while (base.endsWith("/")) {
+      base = base.substring(0, base.length() - 1);
+    }
+    return base;
   }
 
   @FunctionalInterface
