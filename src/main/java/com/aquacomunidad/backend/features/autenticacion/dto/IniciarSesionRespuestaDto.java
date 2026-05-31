@@ -11,6 +11,7 @@ public class IniciarSesionRespuestaDto {
   private String token;
   private String refreshToken;
   private Long userId;
+  private String nombre;
   private String correo;
   private RolUsuario rol;
 }

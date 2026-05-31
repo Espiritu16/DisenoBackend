@@ -13,6 +13,8 @@ public interface CasoRepositorio extends JpaRepository<CasoEntidad, Long> {
 
   List<CasoEntidad> findByEstado(EstadoCaso estado);
 
+  long countByEstado(EstadoCaso estado);
+
   Optional<CasoEntidad> findByReporteOrigenId(Long reporteId);
 
   boolean existsByReporteOrigenId(Long reporteId);

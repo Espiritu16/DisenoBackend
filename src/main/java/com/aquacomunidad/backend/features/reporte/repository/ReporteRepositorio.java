@@ -15,6 +15,12 @@ public interface ReporteRepositorio extends JpaRepository<ReporteEntidad, Long> 
 
   List<ReporteEntidad> findByEstado(EstadoReporte estado);
 
+  long countByEstado(EstadoReporte estado);
+
+  List<ReporteEntidad> findByFechaCreacionBetweenOrderByFechaCreacionAsc(
+      LocalDateTime fechaDesde,
+      LocalDateTime fechaHasta);
+
   @Query("""
       select r
       from ReporteEntidad r

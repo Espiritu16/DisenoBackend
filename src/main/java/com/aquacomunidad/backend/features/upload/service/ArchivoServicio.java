@@ -1,6 +1,9 @@
 package com.aquacomunidad.backend.features.upload.service;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +27,7 @@ public class ArchivoServicio {
 
   private static final long MAX_BYTES = 10L * 1024 * 1024;
   private static final Set<String> MIME_PERMITIDOS = Set.of("image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif");
+  private static final Path UPLOAD_ROOT = Path.of("uploads");
 
   private final Cloudinary cloudinary;
 
@@ -83,8 +87,36 @@ public class ArchivoServicio {
     } catch (ExcepcionApi ex) {
       throw ex;
     } catch (Exception ex) {
-      throw new ExcepcionApi(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo subir la imagen a Cloudinary");
+      return guardarLocal(file, carpeta, publicId, original);
     }
+  }
+
+  private ArchivoSubidoItemDto guardarLocal(MultipartFile file, String carpeta, String publicId, String original) {
+    try {
+      String extension = extensionDe(original);
+      String fileName = publicId + extension;
+      Path targetDir = UPLOAD_ROOT.resolve(carpeta).normalize();
+      Files.createDirectories(targetDir);
+      Path target = targetDir.resolve(fileName).normalize();
+      if (!target.startsWith(targetDir)) {
+        throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Nombre de archivo invalido");
+      }
+      Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+      return ArchivoSubidoItemDto.builder()
+          .url("/uploads/" + carpeta + "/" + fileName)
+          .build();
+    } catch (IOException ex) {
+      throw new ExcepcionApi(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo guardar la imagen localmente");
+    }
+  }
+
+  private String extensionDe(String original) {
+    int index = original.lastIndexOf('.');
+    if (index < 0 || index == original.length() - 1) {
+      return ".jpg";
+    }
+    String extension = original.substring(index).toLowerCase();
+    return extension.matches("\\.(jpg|jpeg|png|webp|gif)") ? extension : ".jpg";
   }
 
   private void validar(MultipartFile file) {

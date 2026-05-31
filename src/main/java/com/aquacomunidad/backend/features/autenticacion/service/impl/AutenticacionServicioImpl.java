@@ -303,6 +303,7 @@ public class AutenticacionServicioImpl implements AutenticacionServicio {
         .token(accessToken)
         .refreshToken(refreshToken)
         .userId(user.getId())
+        .nombre(user.getNombre())
         .correo(user.getCorreo())
         .rol(user.getRol())
         .build();

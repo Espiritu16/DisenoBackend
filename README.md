@@ -379,19 +379,46 @@ flowchart TB
 - MySQL 8+
 
 ### Variables recomendadas
+- `DB_URL`: URL JDBC de MySQL.
+- `DB_USERNAME`: usuario de MySQL.
+- `DB_PASSWORD`: password de MySQL.
+- `MAIL_USERNAME`: correo Gmail usado por SMTP.
 - `MAIL_APP_PASSWORD`: password de aplicacion Gmail.
 - `APP_JWT_SECRETO`: secreto JWT HS256.
 - `APP_JWT_EXPIRACION_SEGUNDOS`: expiracion access token (default 7200).
 - `APP_JWT_REFRESH_EXPIRACION_SEGUNDOS`: expiracion refresh token (default 2592000).
+- `OPENAI_API_KEY`: clave de OpenAI para activar el chatbot con IA.
+- `OPENAI_MODEL`: modelo del chatbot (default `gpt-5-mini`).
+- `CLOUDINARY_CLOUD_NAME`: cloud name de Cloudinary.
+- `CLOUDINARY_API_KEY`: API key de Cloudinary.
+- `CLOUDINARY_API_SECRET`: API secret de Cloudinary.
 
 ### Configuracion de BD
-Configurar conexion en `src/main/resources/application.properties` (o por variables de entorno) segun tu entorno local.
+El backend carga variables desde `DisenoBackend/.env` en ejecucion local. Crea tu archivo local desde la plantilla:
+
+```bash
+cp .env.example .env
+```
+
+Luego completa `.env` con tus valores reales. Ese archivo esta ignorado por Git y no debe subirse al repositorio.
 
 ### Ejecutar
 ```bash
 ./mvnw clean compile
 ./mvnw spring-boot:run
 ```
+
+### Ejecutar con chatbot IA
+La clave de OpenAI no debe guardarse en el repositorio. Colocala en `.env`:
+
+```properties
+OPENAI_API_KEY=sk-tu_clave_aqui
+OPENAI_MODEL=gpt-5-mini
+```
+
+Si `OPENAI_API_KEY` no esta configurada, el endpoint `/api/v1/chatbot/mensajes` responde con un modo local de respaldo para preguntas frecuentes.
+
+El chatbot esta limitado al dominio de AquaComunidad. Las preguntas fuera del sistema se bloquean localmente antes de llamar a OpenAI para evitar gasto innecesario. Las consultas personales, como "que reportes tengo", se resuelven mediante servicios internos del backend y solo usan el usuario autenticado; la IA no recibe acceso directo a la base de datos ni ejecuta SQL.
 
 ### Swagger/OpenAPI
 - `http://localhost:8080/swagger-ui.html`

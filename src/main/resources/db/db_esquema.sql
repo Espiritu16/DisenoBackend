@@ -83,6 +83,43 @@ CREATE TABLE `catalogo_tipo_incidencia` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `chatbot_conversacion`
+--
+
+DROP TABLE IF EXISTS `chatbot_conversacion`;
+CREATE TABLE `chatbot_conversacion` (
+  `id_conversacion` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id_usuario` bigint unsigned NOT NULL,
+  `fecha_conversacion` date NOT NULL,
+  `titulo` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `actualizado_en` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_conversacion`),
+  UNIQUE KEY `uq_chatbot_conversacion_usuario_fecha` (`id_usuario`,`fecha_conversacion`),
+  KEY `idx_chatbot_conversacion_usuario_actualizado` (`id_usuario`,`actualizado_en`),
+  CONSTRAINT `fk_chatbot_conversacion_usuario` FOREIGN KEY (`id_usuario`) REFERENCES `usuario` (`id_usuario`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Table structure for table `chatbot_mensaje`
+--
+
+DROP TABLE IF EXISTS `chatbot_mensaje`;
+CREATE TABLE `chatbot_mensaje` (
+  `id_mensaje` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id_conversacion` bigint unsigned NOT NULL,
+  `rol` enum('USUARIO','ASISTENTE') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `contenido` varchar(2500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `proveedor` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `modelo` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ia_disponible` tinyint(1) NOT NULL DEFAULT '0',
+  `creado_en` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_mensaje`),
+  KEY `idx_chatbot_mensaje_conversacion_fecha` (`id_conversacion`,`creado_en`),
+  CONSTRAINT `fk_chatbot_mensaje_conversacion` FOREIGN KEY (`id_conversacion`) REFERENCES `chatbot_conversacion` (`id_conversacion`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
 -- Table structure for table `historial_estado_caso`
 --
 
