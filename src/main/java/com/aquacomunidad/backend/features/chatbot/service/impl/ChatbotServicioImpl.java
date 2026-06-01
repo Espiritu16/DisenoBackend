@@ -35,6 +35,8 @@ import com.aquacomunidad.backend.features.chatbot.repository.ChatbotConversacion
 import com.aquacomunidad.backend.features.chatbot.repository.ChatbotMensajeRepositorio;
 import com.aquacomunidad.backend.features.chatbot.service.ChatbotServicio;
 import com.aquacomunidad.backend.features.chatbot.support.ContextoChatbotAquaComunidad;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenDto;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenItemDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -380,8 +382,8 @@ public class ChatbotServicioImpl implements ChatbotServicio {
           List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
     }
 
-    List<ReporteRespuestaDto> reportes = reporteServicio.listarMisReportes(usuarioId);
-    if (reportes.isEmpty()) {
+    ReporteResumenDto resumen = reporteServicio.obtenerResumenMisReportes(usuarioId);
+    if (resumen.getTotal() == 0) {
       return new ChatbotRespuestaDto(
           "No tienes reportes registrados por ahora. Para crear uno, entra a Reportar y completa ubicacion, tipo de incidencia, descripcion y evidencia.",
           "local",
@@ -391,19 +393,17 @@ public class ChatbotServicioImpl implements ChatbotServicio {
 
     Long reporteId = extraerReporteId(mensaje);
     if (reporteId != null) {
-      return responderReportePorCodigo(reportes, reporteId);
+      return responderReportePorCodigo(usuarioId, reporteId);
     }
     if (esConsultaUltimoReporte(mensaje)) {
-      return responderUltimoReporte(reportes);
+      return responderUltimoReporte(reporteServicio.obtenerUltimoReporte(usuarioId));
     }
     if (esConsultaCantidadReportes(mensaje)) {
-      return responderResumenReportes(reportes);
+      return responderResumenReportes(resumen);
     }
 
     StringBuilder respuesta = new StringBuilder("Estos son tus reportes recientes:\n");
-    reportes.stream()
-        .sorted((a, b) -> b.getFechaCreacion().compareTo(a.getFechaCreacion()))
-        .limit(5)
+    reporteServicio.listarMisReportesRecientes(usuarioId, 5).stream()
         .forEach(reporte -> respuesta
             .append("- REP-")
             .append(reporte.getId())
@@ -426,33 +426,26 @@ public class ChatbotServicioImpl implements ChatbotServicio {
         List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
   }
 
-  private ChatbotRespuestaDto responderResumenReportes(List<ReporteRespuestaDto> reportes) {
-    long pendientes = contarPorEstado(reportes, "PENDIENTE");
-    long enProceso = contarPorEstado(reportes, "EN_PROCESO");
-    long resueltos = contarPorEstado(reportes, "RESUELTO");
-    long duplicados = contarPorEstado(reportes, "DUPLICADO");
-    long rechazados = contarPorEstado(reportes, "RECHAZADO");
-    long escalados = contarPorEstado(reportes, "ESCALADO");
-
+  private ChatbotRespuestaDto responderResumenReportes(ReporteResumenDto resumen) {
     StringBuilder respuesta = new StringBuilder()
         .append("Tienes ")
-        .append(reportes.size())
+        .append(resumen.getTotal())
         .append(" ")
-        .append(pluralizar(reportes.size(), "reporte", "reportes"))
+        .append(pluralizar(resumen.getTotal(), "reporte", "reportes"))
         .append(": ")
-        .append(fragmentoCantidad(pendientes, "pendiente", "pendientes"))
+        .append(fragmentoCantidad(resumen.getPendientes(), "pendiente", "pendientes"))
         .append(", ")
-        .append(fragmentoCantidad(enProceso, "en proceso", "en proceso"))
+        .append(fragmentoCantidad(resumen.getEnProceso(), "en proceso", "en proceso"))
         .append(" y ")
-        .append(fragmentoCantidad(resueltos, "resuelto", "resueltos"));
-    if (duplicados > 0 || rechazados > 0 || escalados > 0) {
+        .append(fragmentoCantidad(resumen.getResueltos(), "resuelto", "resueltos"));
+    if (resumen.getDuplicados() > 0 || resumen.getRechazados() > 0 || resumen.getEscalados() > 0) {
       respuesta
           .append(". Tambien tienes ")
-          .append(fragmentoCantidad(duplicados, "duplicado", "duplicados"))
+          .append(fragmentoCantidad(resumen.getDuplicados(), "duplicado", "duplicados"))
           .append(", ")
-          .append(fragmentoCantidad(rechazados, "rechazado", "rechazados"))
+          .append(fragmentoCantidad(resumen.getRechazados(), "rechazado", "rechazados"))
           .append(" y ")
-          .append(fragmentoCantidad(escalados, "escalado", "escalados"));
+          .append(fragmentoCantidad(resumen.getEscalados(), "escalado", "escalados"));
     }
     respuesta.append(".");
 
@@ -467,10 +460,7 @@ public class ChatbotServicioImpl implements ChatbotServicio {
         List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
   }
 
-  private ChatbotRespuestaDto responderUltimoReporte(List<ReporteRespuestaDto> reportes) {
-    ReporteRespuestaDto ultimo = reportes.stream()
-        .max((a, b) -> a.getFechaCreacion().compareTo(b.getFechaCreacion()))
-        .orElseThrow();
+  private ChatbotRespuestaDto responderUltimoReporte(ReporteResumenItemDto ultimo) {
     String estado = contextoChatbot.etiquetaEstadoReporte(ultimo.getEstado().name());
     String estadoDetalle = ultimo.getEstado().name().equals("RESUELTO")
         ? "ya esta resuelto"
@@ -491,12 +481,11 @@ public class ChatbotServicioImpl implements ChatbotServicio {
         List.of(new ChatbotAccionDto("Ver Mis Reportes", "/mis-reportes")));
   }
 
-  private ChatbotRespuestaDto responderReportePorCodigo(List<ReporteRespuestaDto> reportes, Long reporteId) {
-    ReporteRespuestaDto reporte = reportes.stream()
-        .filter(item -> item.getId().equals(reporteId))
-        .findFirst()
-        .orElse(null);
-    if (reporte == null) {
+  private ChatbotRespuestaDto responderReportePorCodigo(Long usuarioId, Long reporteId) {
+    ReporteRespuestaDto reporte;
+    try {
+      reporte = reporteServicio.obtenerMiReporte(reporteId, usuarioId);
+    } catch (ExcepcionApi ex) {
       return new ChatbotRespuestaDto(
           "No encontre el reporte REP-" + reporteId + " entre tus reportes. Verifica el numero de consulta en Mis Reportes.",
           "local",
@@ -667,12 +656,6 @@ public class ChatbotServicioImpl implements ChatbotServicio {
 
   private String normalizar(String texto) {
     return texto == null ? "" : texto.toLowerCase().trim();
-  }
-
-  private long contarPorEstado(List<ReporteRespuestaDto> reportes, String estado) {
-    return reportes.stream()
-        .filter(reporte -> reporte.getEstado().name().equals(estado))
-        .count();
   }
 
   private String fragmentoCantidad(long cantidad, String singular, String plural) {

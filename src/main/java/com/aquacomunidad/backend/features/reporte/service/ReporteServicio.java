@@ -29,6 +29,8 @@ public interface ReporteServicio {
 
   List<ReporteRespuestaDto> listarMisReportes(Long usuarioId);
 
+  List<ReporteResumenItemDto> listarMisReportesRecientes(Long usuarioId, int limite);
+
   ReporteResumenDto obtenerResumenMisReportes(Long usuarioId);
 
   ReporteResumenItemDto obtenerUltimoReporte(Long usuarioId);

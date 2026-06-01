@@ -23,6 +23,7 @@ import com.aquacomunidad.backend.features.reporte.entity.CatalogoTipoIncidenciaE
 import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
 import com.aquacomunidad.backend.features.reporte.mapper.ReporteMapeador;
 import com.aquacomunidad.backend.features.reporte.repository.CatalogoTipoIncidenciaRepositorio;
+import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoEstado;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteImagenRepositorio;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -51,11 +52,13 @@ class ReporteServicioImplTest {
 
   @Test
   void obtenerResumenMisReportesCuentaEstadosYDevuelveUltimoReporte() {
-    when(reporteRepositorio.findByUsuarioId(10L)).thenReturn(List.of(
-        reporte(1L, EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-28T10:00:00")),
-        reporte(2L, EstadoReporte.EN_PROCESO, LocalDateTime.parse("2026-05-30T09:00:00")),
-        reporte(3L, EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T08:00:00")),
-        reporte(4L, EstadoReporte.RECHAZADO, LocalDateTime.parse("2026-05-29T12:00:00"))));
+    when(reporteRepositorio.contarPorEstadoDeUsuario(10L)).thenReturn(List.of(
+        conteo(EstadoReporte.PENDIENTE, 1),
+        conteo(EstadoReporte.EN_PROCESO, 1),
+        conteo(EstadoReporte.RESUELTO, 1),
+        conteo(EstadoReporte.RECHAZADO, 1)));
+    when(reporteRepositorio.findTopByUsuarioIdOrderByFechaCreacionDesc(10L))
+        .thenReturn(Optional.of(reporte(3L, EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T08:00:00"))));
 
     var resumen = reporteServicio.obtenerResumenMisReportes(10L);
 
@@ -71,9 +74,8 @@ class ReporteServicioImplTest {
 
   @Test
   void obtenerUltimoReporteDevuelveElMasRecienteDelUsuario() {
-    when(reporteRepositorio.findByUsuarioId(10L)).thenReturn(List.of(
-        reporte(1L, EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-28T10:00:00")),
-        reporte(2L, EstadoReporte.EN_PROCESO, LocalDateTime.parse("2026-05-31T09:00:00"))));
+    when(reporteRepositorio.findTopByUsuarioIdOrderByFechaCreacionDesc(10L))
+        .thenReturn(Optional.of(reporte(2L, EstadoReporte.EN_PROCESO, LocalDateTime.parse("2026-05-31T09:00:00"))));
 
     var ultimo = reporteServicio.obtenerUltimoReporte(10L);
 
@@ -84,9 +86,7 @@ class ReporteServicioImplTest {
 
   @Test
   void obtenerMiReporteRechazaReportesDeOtroUsuario() {
-    ReporteEntidad reporte = reporte(7L, EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-31T09:00:00"));
-    reporte.getUsuario().setId(99L);
-    when(reporteRepositorio.findById(7L)).thenReturn(Optional.of(reporte));
+    when(reporteRepositorio.findByIdAndUsuarioId(7L, 10L)).thenReturn(Optional.empty());
 
     assertThrows(ExcepcionApi.class, () -> reporteServicio.obtenerMiReporte(7L, 10L));
   }
@@ -103,7 +103,7 @@ class ReporteServicioImplTest {
         .fechaCreacion(reporte.getFechaCreacion())
         .fechaActualizacion(reporte.getFechaActualizacion())
         .build();
-    when(reporteRepositorio.findById(8L)).thenReturn(Optional.of(reporte));
+    when(reporteRepositorio.findByIdAndUsuarioId(8L, 10L)).thenReturn(Optional.of(reporte));
     when(reporteMapeador.aRespuesta(reporte)).thenReturn(respuesta);
 
     var detalle = reporteServicio.obtenerMiReporte(8L, 10L);
@@ -128,5 +128,19 @@ class ReporteServicioImplTest {
     reporte.setFechaCreacion(fechaCreacion);
     reporte.setFechaActualizacion(fechaCreacion);
     return reporte;
+  }
+
+  private ReporteConteoEstado conteo(EstadoReporte estado, long total) {
+    return new ReporteConteoEstado() {
+      @Override
+      public EstadoReporte getEstado() {
+        return estado;
+      }
+
+      @Override
+      public long getTotal() {
+        return total;
+      }
+    };
   }
 }
