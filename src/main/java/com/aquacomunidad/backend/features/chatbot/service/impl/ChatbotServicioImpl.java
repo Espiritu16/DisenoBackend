@@ -51,6 +51,8 @@ public class ChatbotServicioImpl implements ChatbotServicio {
   private static final String OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
   private static final int MAX_HISTORIAL_ENVIADO = 8;
   private static final ZoneId ZONA_HORARIA = ZoneId.of("America/Lima");
+  private static final Pattern RUTA_VISIBLE_PATTERN = Pattern.compile(
+      "(?i)\\s*\\(?/(?:inicio|reportar|mis-reportes|contacto)(?:\\?auth=(?:registro|login))?\\)?");
 
   private final ObjectMapper objectMapper;
   private final HttpClient httpClient;
@@ -180,7 +182,7 @@ public class ChatbotServicioImpl implements ChatbotServicio {
     }
 
     try {
-      String respuesta = consultarOpenAi(solicitud);
+      String respuesta = limpiarRespuestaVisible(consultarOpenAi(solicitud));
       return new ChatbotRespuestaDto(
           respuesta,
           "openai",
@@ -341,20 +343,20 @@ public class ChatbotServicioImpl implements ChatbotServicio {
     } else if (contextoChatbot.esConsultaSobreSistema(normalizado)) {
       respuesta = contextoChatbot.respuestaSistema();
     } else if (normalizado.contains("reporte") || normalizado.contains("incidencia") || normalizado.contains("fuga")) {
-      respuesta = "Para hacer un reporte entra a Reportar, selecciona tu distrito, marca el punto en el mapa, elige el tipo de incidencia, agrega una descripcion y adjunta fotos si las tienes. Luego revisa el resumen y envia el reporte.";
+      respuesta = "Para hacer un reporte, abre Reportar, selecciona tu distrito, marca la ubicacion en el mapa, elige el tipo de incidencia, agrega una descripcion y adjunta fotos si las tienes. Luego revisa el resumen y envia el reporte.";
     } else if (normalizado.contains("registr")) {
-      respuesta = "Para registrarte presiona Registrarse en la cabecera, coloca tu nombre, correo y una contrasena segura. Despues podras iniciar sesion para enviar reportes y hacer seguimiento.";
+      respuesta = "Para registrarte, presiona Registrarse, coloca tu nombre, correo y una contrasena segura. Despues podras iniciar sesion para enviar reportes y hacer seguimiento.";
     } else if (normalizado.contains("seguimiento") || normalizado.contains("estado") || normalizado.contains("consulta")) {
-      respuesta = "Para consultar el avance entra a Mis Reportes e ingresa tu numero de consulta. Ahi veras el estado, historial y resolucion cuando corresponda.";
+      respuesta = "Para consultar el avance, abre Mis Reportes e ingresa tu numero de consulta. Ahi veras el estado, historial y resolucion cuando corresponda.";
     } else {
-      respuesta = "Puedo orientarte sobre como reportar incidencias de agua, registrarte, consultar tus reportes o contactar soporte de AquaComunidad.";
+      respuesta = "Puedo ayudarte a reportar una incidencia de agua, registrarte, iniciar sesion, revisar tus reportes o contactar a soporte. ¿Que necesitas hacer?";
     }
     return new ChatbotRespuestaDto(respuesta, "local", "fallback", false, null, null, false, accionesParaRespuesta(mensaje, respuesta));
   }
 
   private ChatbotRespuestaDto respuestaFueraDeAlcance() {
     return new ChatbotRespuestaDto(
-        "Solo puedo ayudarte con AquaComunidad: reportar incidencias, registrarte, consultar tus reportes, seguimiento, contacto y uso de la plataforma.",
+        "Solo puedo ayudarte con temas de AquaComunidad, como reportar incidencias, registrarte, consultar tus reportes, hacer seguimiento o contactar a soporte.",
         "local",
         "scope-filter",
         false);
@@ -385,7 +387,7 @@ public class ChatbotServicioImpl implements ChatbotServicio {
     ReporteResumenDto resumen = reporteServicio.obtenerResumenMisReportes(usuarioId);
     if (resumen.getTotal() == 0) {
       return new ChatbotRespuestaDto(
-          "No tienes reportes registrados por ahora. Para crear uno, entra a Reportar y completa ubicacion, tipo de incidencia, descripcion y evidencia.",
+          "No tienes reportes registrados por ahora. Para crear uno, abre Reportar y completa ubicacion, tipo de incidencia, descripcion y evidencia.",
           "local",
           "reportes-service",
           false);
@@ -414,7 +416,7 @@ public class ChatbotServicioImpl implements ChatbotServicio {
             .append(" - ")
             .append(contextoChatbot.etiquetaEstadoReporte(reporte.getEstado().name()))
             .append(".\n"));
-    respuesta.append("Para revisar la trazabilidad completa, entra a Mis Reportes.");
+    respuesta.append("Para revisar la trazabilidad completa, abre Mis Reportes.");
     return new ChatbotRespuestaDto(
         respuesta.toString(),
         "local",
@@ -656,6 +658,25 @@ public class ChatbotServicioImpl implements ChatbotServicio {
 
   private String normalizar(String texto) {
     return texto == null ? "" : texto.toLowerCase().trim();
+  }
+
+  private String limpiarRespuestaVisible(String respuesta) {
+    if (!StringUtils.hasText(respuesta)) {
+      return "Puedo ayudarte a reportar una incidencia, revisar tus reportes o contactar a soporte. ¿Que necesitas hacer?";
+    }
+    String limpia = RUTA_VISIBLE_PATTERN.matcher(respuesta).replaceAll("");
+    limpia = limpia
+        .replace("  ", " ")
+        .replace(" :", ":")
+        .replace(" ,", ",")
+        .replace(" .", ".")
+        .replace(" ;", ";")
+        .replaceAll("\\n{3,}", "\n\n")
+        .trim();
+    if (!StringUtils.hasText(limpia)) {
+      return "Puedo ayudarte a reportar una incidencia, revisar tus reportes o contactar a soporte. ¿Que necesitas hacer?";
+    }
+    return limpia;
   }
 
   private String fragmentoCantidad(long cantidad, String singular, String plural) {
