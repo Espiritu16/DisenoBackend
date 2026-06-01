@@ -8,6 +8,7 @@ import java.text.Normalizer;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,7 @@ import com.aquacomunidad.backend.features.upload.dto.ArchivoSubidoRespuestaDto;
 public class ArchivoServicio {
 
   private static final long MAX_BYTES = 10L * 1024 * 1024;
+  private static final long WEBP_TIMEOUT_SECONDS = 30;
   private static final Set<String> MIME_PERMITIDOS = Set.of("image/jpeg", "image/jpg", "image/png", "image/webp");
   private static final Set<String> CARPETAS_PERMITIDAS = Set.of("reportes", "casos");
 
@@ -197,7 +199,12 @@ public class ArchivoServicio {
           target.toString());
       Process process = processBuilder.start();
       try {
-        int exitCode = process.waitFor();
+        boolean terminado = process.waitFor(WEBP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        if (!terminado) {
+          process.destroyForcibly();
+          throw new IOException("cwebp excedio el tiempo maximo de conversion");
+        }
+        int exitCode = process.exitValue();
         if (exitCode != 0) {
           throw new IOException("cwebp termino con codigo " + exitCode);
         }

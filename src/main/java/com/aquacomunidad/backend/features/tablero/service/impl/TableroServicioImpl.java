@@ -3,7 +3,7 @@ package com.aquacomunidad.backend.features.tablero.service.impl;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.TextStyle;
-import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +22,7 @@ import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ActividadSemanalDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ReportePorZonaDto;
 import com.aquacomunidad.backend.features.tablero.service.TableroServicio;
-import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
+import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoEstado;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
 
 import lombok.RequiredArgsConstructor;
@@ -36,10 +37,18 @@ public class TableroServicioImpl implements TableroServicio {
   @Override
   @Transactional(readOnly = true)
   public TableroKpiDto getKpis() {
+    Map<EstadoReporte, Long> reportesPorEstado = reporteRepositorio.contarPorEstadoGlobal()
+        .stream()
+        .collect(Collectors.toMap(
+            ReporteConteoEstado::getEstado,
+            ReporteConteoEstado::getTotal,
+            (actual, reemplazo) -> actual,
+            () -> new EnumMap<>(EstadoReporte.class)));
+
     return TableroKpiDto.builder()
-        .reportesPendientes(reporteRepositorio.countByEstado(EstadoReporte.PENDIENTE))
-        .reportesEnProceso(reporteRepositorio.countByEstado(EstadoReporte.EN_PROCESO))
-        .reportesResueltos(reporteRepositorio.countByEstado(EstadoReporte.RESUELTO))
+        .reportesPendientes(reportesPorEstado.getOrDefault(EstadoReporte.PENDIENTE, 0L))
+        .reportesEnProceso(reportesPorEstado.getOrDefault(EstadoReporte.EN_PROCESO, 0L))
+        .reportesResueltos(reportesPorEstado.getOrDefault(EstadoReporte.RESUELTO, 0L))
         .casosAbiertos(casoRepositorio.countByEstado(EstadoCaso.EN_PROCESO))
         .actividadSemanal(actividadSemanal())
         .reportesPorZona(reportesPorZona())
@@ -52,12 +61,13 @@ public class TableroServicioImpl implements TableroServicio {
     LocalDateTime desde = inicio.atStartOfDay();
     LocalDateTime hasta = hoy.plusDays(1).atStartOfDay();
 
-    Map<LocalDate, Long> conteoPorDia = reporteRepositorio
-        .findByFechaCreacionBetweenOrderByFechaCreacionAsc(desde, hasta)
+    Map<LocalDate, Long> conteoPorDia = reporteRepositorio.contarPorDia(desde, hasta)
         .stream()
-        .collect(Collectors.groupingBy(
-            reporte -> reporte.getFechaCreacion().toLocalDate(),
-            Collectors.counting()));
+        .collect(Collectors.toMap(
+            conteo -> conteo.getFecha(),
+            conteo -> conteo.getTotal(),
+            (actual, reemplazo) -> actual,
+            LinkedHashMap::new));
 
     return IntStream.rangeClosed(0, 6)
         .mapToObj(inicio::plusDays)
@@ -69,21 +79,11 @@ public class TableroServicioImpl implements TableroServicio {
   }
 
   private List<ReportePorZonaDto> reportesPorZona() {
-    Map<String, Long> conteoPorZona = reporteRepositorio.findAll()
+    return reporteRepositorio.contarZonas(PageRequest.of(0, 5))
         .stream()
-        .collect(Collectors.groupingBy(
-            reporte -> normalizarZona(reporte.getZona()),
-            LinkedHashMap::new,
-            Collectors.counting()));
-
-    return conteoPorZona.entrySet()
-        .stream()
-        .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
-            .thenComparing(Map.Entry.comparingByKey()))
-        .limit(5)
-        .map(entry -> ReportePorZonaDto.builder()
-            .nombre(entry.getKey())
-            .cantidad(entry.getValue())
+        .map(conteo -> ReportePorZonaDto.builder()
+            .nombre(normalizarZona(conteo.getZona()))
+            .cantidad(conteo.getTotal())
             .build())
         .toList();
   }

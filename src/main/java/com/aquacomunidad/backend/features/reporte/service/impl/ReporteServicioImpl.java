@@ -1,8 +1,11 @@
 package com.aquacomunidad.backend.features.reporte.service.impl;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.time.LocalDateTime;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
 import com.aquacomunidad.backend.features.reporte.entity.ReporteImagenEntidad;
 import com.aquacomunidad.backend.features.reporte.mapper.ReporteMapeador;
 import com.aquacomunidad.backend.features.reporte.repository.CatalogoTipoIncidenciaRepositorio;
+import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoEstado;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteImagenRepositorio;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
@@ -133,17 +137,19 @@ public class ReporteServicioImpl implements ReporteServicio {
   @Override
   @Transactional(readOnly = true)
   public ReporteResumenDto obtenerResumenMisReportes(Long usuarioId) {
-    List<ReporteEntidad> reportes = reporteRepositorio.findByUsuarioId(usuarioId);
-    ReporteEntidad ultimo = ultimoReporte(reportes);
+    Map<EstadoReporte, Long> conteos = reporteRepositorio.contarPorEstadoDeUsuario(usuarioId)
+        .stream()
+        .collect(Collectors.toMap(ReporteConteoEstado::getEstado, ReporteConteoEstado::getTotal));
+    ReporteEntidad ultimo = reporteRepositorio.findTopByUsuarioIdOrderByFechaCreacionDesc(usuarioId).orElse(null);
 
     return ReporteResumenDto.builder()
-        .total(reportes.size())
-        .pendientes(contarPorEstado(reportes, EstadoReporte.PENDIENTE))
-        .enProceso(contarPorEstado(reportes, EstadoReporte.EN_PROCESO))
-        .resueltos(contarPorEstado(reportes, EstadoReporte.RESUELTO))
-        .duplicados(contarPorEstado(reportes, EstadoReporte.DUPLICADO))
-        .rechazados(contarPorEstado(reportes, EstadoReporte.RECHAZADO))
-        .escalados(contarPorEstado(reportes, EstadoReporte.ESCALADO))
+        .total(conteos.values().stream().mapToLong(Long::longValue).sum())
+        .pendientes(conteo(conteos, EstadoReporte.PENDIENTE))
+        .enProceso(conteo(conteos, EstadoReporte.EN_PROCESO))
+        .resueltos(conteo(conteos, EstadoReporte.RESUELTO))
+        .duplicados(conteo(conteos, EstadoReporte.DUPLICADO))
+        .rechazados(conteo(conteos, EstadoReporte.RECHAZADO))
+        .escalados(conteo(conteos, EstadoReporte.ESCALADO))
         .ultimoReporte(ultimo == null ? null : aResumenItem(ultimo))
         .build();
   }
@@ -151,20 +157,26 @@ public class ReporteServicioImpl implements ReporteServicio {
   @Override
   @Transactional(readOnly = true)
   public ReporteResumenItemDto obtenerUltimoReporte(Long usuarioId) {
-    return reporteRepositorio.findByUsuarioId(usuarioId).stream()
-        .max((a, b) -> a.getFechaCreacion().compareTo(b.getFechaCreacion()))
+    return reporteRepositorio.findTopByUsuarioIdOrderByFechaCreacionDesc(usuarioId)
         .map(this::aResumenItem)
         .orElse(null);
   }
 
   @Override
   @Transactional(readOnly = true)
+  public List<ReporteResumenItemDto> listarMisReportesRecientes(Long usuarioId, int limite) {
+    int limiteSeguro = Math.max(1, Math.min(limite, 20));
+    return reporteRepositorio.findByUsuarioIdOrderByFechaCreacionDesc(usuarioId, PageRequest.of(0, limiteSeguro))
+        .stream()
+        .map(this::aResumenItem)
+        .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public ReporteRespuestaDto obtenerMiReporte(Long reporteId, Long usuarioId) {
-    ReporteEntidad reporte = reporteRepositorio.findById(reporteId)
+    ReporteEntidad reporte = reporteRepositorio.findByIdAndUsuarioId(reporteId, usuarioId)
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.NOT_FOUND, "Reporte no encontrado"));
-    if (!reporte.getUsuario().getId().equals(usuarioId)) {
-      throw new ExcepcionApi(HttpStatus.FORBIDDEN, "No puede ver reportes de otro usuario");
-    }
     return reporteMapeador.aRespuesta(reporte);
   }
 
@@ -217,16 +229,8 @@ public class ReporteServicioImpl implements ReporteServicio {
     return limpio.isEmpty() ? null : limpio;
   }
 
-  private long contarPorEstado(List<ReporteEntidad> reportes, EstadoReporte estado) {
-    return reportes.stream()
-        .filter(reporte -> reporte.getEstado() == estado)
-        .count();
-  }
-
-  private ReporteEntidad ultimoReporte(List<ReporteEntidad> reportes) {
-    return reportes.stream()
-        .max((a, b) -> a.getFechaCreacion().compareTo(b.getFechaCreacion()))
-        .orElse(null);
+  private long conteo(Map<EstadoReporte, Long> conteos, EstadoReporte estado) {
+    return conteos.getOrDefault(estado, 0L);
   }
 
   private ReporteResumenItemDto aResumenItem(ReporteEntidad reporte) {

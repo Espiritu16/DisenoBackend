@@ -204,8 +204,7 @@ public class CasoServicioImpl implements CasoServicio {
   public List<CasoRespuestaDto> listarPorEstado(EstadoCaso estado) {
     UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
     if (actor.getRol() == RolUsuario.OPERADOR) {
-      return casoRepositorio.findByResponsableId(actor.getId()).stream()
-          .filter(caso -> caso.getEstado() == estado)
+      return casoRepositorio.findByResponsableIdAndEstado(actor.getId(), estado).stream()
           .map(casoMapeador::aRespuesta)
           .toList();
     }

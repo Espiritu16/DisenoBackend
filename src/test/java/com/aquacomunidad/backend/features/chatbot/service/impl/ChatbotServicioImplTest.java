@@ -26,6 +26,8 @@ import com.aquacomunidad.backend.features.chatbot.entity.ChatbotConversacionEnti
 import com.aquacomunidad.backend.features.chatbot.entity.ChatbotMensajeEntidad;
 import com.aquacomunidad.backend.features.chatbot.entity.RolMensajeChatbot;
 import com.aquacomunidad.backend.features.chatbot.support.ContextoChatbotAquaComunidad;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenDto;
+import com.aquacomunidad.backend.features.reporte.dto.ReporteResumenItemDto;
 import com.aquacomunidad.backend.features.reporte.dto.ReporteRespuestaDto;
 import com.aquacomunidad.backend.features.reporte.service.ReporteServicio;
 import com.aquacomunidad.backend.features.usuario.entity.UsuarioEntidad;
@@ -118,9 +120,10 @@ class ChatbotServicioImplTest {
   @Test
   void resumeReportesDelUsuarioAutenticadoSinExponerSqlAIa() {
     ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
-    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
-        reporte(13L, "Fuga", "Ate", EstadoReporte.PENDIENTE),
-        reporte(14L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO)));
+    when(reporteServicio.obtenerResumenMisReportes(10L)).thenReturn(resumen(2, 1, 0, 1));
+    when(reporteServicio.listarMisReportesRecientes(10L, 5)).thenReturn(List.of(
+        resumenItem(13L, "Fuga", "Ate", EstadoReporte.PENDIENTE),
+        resumenItem(14L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO)));
     ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
     autenticarCiudadano(10L);
 
@@ -134,11 +137,7 @@ class ChatbotServicioImplTest {
   @Test
   void respondeCantidadDeReportesPorEstadoDesdeDatosDelUsuario() {
     ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
-    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
-        reporte(13L, "Fuga", "Ate", EstadoReporte.PENDIENTE),
-        reporte(14L, "Baja presion", "San Miguel", EstadoReporte.PENDIENTE),
-        reporte(15L, "Corte", "Miraflores", EstadoReporte.EN_PROCESO),
-        reporte(16L, "Fuga", "Cercado de Lima", EstadoReporte.RESUELTO)));
+    when(reporteServicio.obtenerResumenMisReportes(10L)).thenReturn(resumen(4, 2, 1, 1));
     ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
     autenticarCiudadano(10L);
 
@@ -152,9 +151,9 @@ class ChatbotServicioImplTest {
   @Test
   void respondeSiUltimoReporteYaEstaAcabado() {
     ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
-    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
-        reporte(20L, "Fuga", "Ate", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-30T08:00:00")),
-        reporte(21L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T09:00:00"))));
+    when(reporteServicio.obtenerResumenMisReportes(10L)).thenReturn(resumen(2, 1, 0, 1));
+    when(reporteServicio.obtenerUltimoReporte(10L)).thenReturn(
+        resumenItem(21L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T09:00:00")));
     ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
     autenticarCiudadano(10L);
 
@@ -169,9 +168,9 @@ class ChatbotServicioImplTest {
   @Test
   void respondeEstadoDeReportePorCodigo() {
     ReporteServicio reporteServicio = Mockito.mock(ReporteServicio.class);
-    when(reporteServicio.listarMisReportes(10L)).thenReturn(List.of(
-        reporte(20L, "Fuga", "Ate", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-30T08:00:00")),
-        reporte(21L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T09:00:00"))));
+    when(reporteServicio.obtenerResumenMisReportes(10L)).thenReturn(resumen(2, 1, 0, 1));
+    when(reporteServicio.obtenerMiReporte(21L, 10L)).thenReturn(
+        reporte(21L, "Baja presion", "San Miguel", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-05-31T09:00:00")));
     ChatbotServicioImpl servicio = servicio("sk-test", reporteServicio);
     autenticarCiudadano(10L);
 
@@ -250,6 +249,39 @@ class ChatbotServicioImplTest {
         .fechaCreacion(fechaCreacion)
         .fechaActualizacion(fechaCreacion)
         .fotoUrls(List.of())
+        .build();
+  }
+
+  private ReporteResumenDto resumen(long total, long pendientes, long enProceso, long resueltos) {
+    return ReporteResumenDto.builder()
+        .total(total)
+        .pendientes(pendientes)
+        .enProceso(enProceso)
+        .resueltos(resueltos)
+        .duplicados(0)
+        .rechazados(0)
+        .escalados(0)
+        .build();
+  }
+
+  private ReporteResumenItemDto resumenItem(Long id, String tipo, String zona, EstadoReporte estado) {
+    return resumenItem(id, tipo, zona, estado, LocalDateTime.now());
+  }
+
+  private ReporteResumenItemDto resumenItem(
+      Long id,
+      String tipo,
+      String zona,
+      EstadoReporte estado,
+      LocalDateTime fechaCreacion) {
+    return ReporteResumenItemDto.builder()
+        .id(id)
+        .codigo("REP-" + id)
+        .tipo(tipo)
+        .zona(zona)
+        .estado(estado)
+        .fechaCreacion(fechaCreacion)
+        .fechaActualizacion(fechaCreacion)
         .build();
   }
 
