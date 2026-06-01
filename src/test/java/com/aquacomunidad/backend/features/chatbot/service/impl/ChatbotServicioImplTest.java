@@ -89,8 +89,8 @@ class ChatbotServicioImplTest {
     assertThat(respuesta.respuesta())
         .contains("+51 999 000 111")
         .contains("+51 944 555 221")
-        .contains("Lun - Sab")
-        .contains("Emergencias 24/7");
+        .contains("lunes a sabado")
+        .contains("atencion 24/7");
   }
 
   @Test
@@ -115,6 +115,36 @@ class ChatbotServicioImplTest {
     assertThat(respuesta.iaDisponible()).isFalse();
     assertThat(respuesta.proveedor()).isEqualTo("local");
     assertThat(respuesta.respuesta()).contains("AquaComunidad");
+  }
+
+  @Test
+  void respondeSaludosConMensajeCiudadanoSinRutasInternas() {
+    ChatbotServicioImpl servicio = servicio("", Mockito.mock(ReporteServicio.class));
+
+    var respuesta = servicio.responder(new ChatbotSolicitudDto("hola", null));
+
+    assertThat(respuesta.iaDisponible()).isFalse();
+    assertThat(respuesta.respuesta())
+        .contains("Puedo ayudarte")
+        .doesNotContain("/inicio")
+        .doesNotContain("/reportar")
+        .doesNotContain("/mis-reportes")
+        .doesNotContain("?auth=");
+  }
+
+  @Test
+  void instruccionesDeIaPidenNoMostrarRutasInternas() {
+    String instrucciones = new ContextoChatbotAquaComunidad().instruccionesSistema();
+
+    assertThat(instrucciones)
+        .contains("No muestres rutas")
+        .contains("nombres entendibles")
+        .doesNotContain("/inicio")
+        .doesNotContain("/reportar")
+        .doesNotContain("/mis-reportes")
+        .doesNotContain("?auth=")
+        .doesNotContain("- Reportar: /reportar")
+        .doesNotContain("- Registro: /inicio?auth=registro");
   }
 
   @Test
