@@ -1,6 +1,6 @@
 # AquaComunidad Backend
 
-Backend REST de AquaComunidad para registrar reportes ciudadanos de agua, gestionar casos operativos, consultar trazabilidad, atender usuarios y servir el asistente ciudadano.
+Backend REST de AquaComunidad para registrar reportes ciudadanos de agua, gestionar casos operativos, consultar trazabilidad, publicar alertas del servicio, monitorear niveles IoT, atender usuarios y servir el asistente ciudadano.
 
 ## Stack
 
@@ -31,7 +31,9 @@ src/main/java/com/aquacomunidad/backend/
     ├── caso/            # Casos operativos y cambios de estado
     ├── historial/       # Auditoria de estados
     ├── usuario/         # Administracion de usuarios
-    ├── tablero/         # KPIs del panel administrativo
+    ├── servicio/        # Alertas del estado del servicio por zona
+    ├── iot/             # Infraestructura hidrica, lecturas y alertas IoT
+    ├── tablero/         # KPIs del panel administrativo y exportacion PDF
     ├── upload/          # Carga local o SFTP de imagenes optimizadas a WebP
     └── chatbot/         # Asistente ciudadano con fallback local
 ```
@@ -48,20 +50,20 @@ flowchart TB
     end
 
     subgraph api["Capa API REST"]
-        controllers["Controladores REST<br/>auth, reportes, casos, usuarios,<br/>dashboard, uploads, chatbot"]
+        controllers["Controladores REST<br/>auth, reportes, casos, usuarios,<br/>dashboard, servicio, IoT,<br/>uploads, chatbot"]
         validation["DTOs + Jakarta Validation<br/>validacion de entrada"]
         security["Spring Security<br/>JWT Bearer + RBAC"]
     end
 
     subgraph negocio["Capa de negocio"]
-        services["Servicios<br/>reglas de negocio, transacciones,<br/>duplicados, estados, trazabilidad"]
+        services["Servicios<br/>reglas de negocio, transacciones,<br/>duplicados, estados, trazabilidad,<br/>alertas e indicadores"]
         chatbot["Servicio Chatbot<br/>OpenAI + fallback local"]
         uploads["Servicio Upload<br/>validacion, conversion WebP,<br/>almacenamiento local o SFTP"]
     end
 
     subgraph persistencia["Capa de persistencia"]
         repositories["Repositorios JPA"]
-        mysql["MySQL<br/>usuarios, reportes, casos,<br/>historial, tokens, conversaciones"]
+        mysql["MySQL<br/>usuarios, reportes, casos,<br/>alertas, IoT, historial,<br/>tokens, conversaciones"]
     end
 
     subgraph externos["Servicios externos"]
@@ -142,10 +144,23 @@ Los indices de optimizacion estan en:
 src/main/resources/db/optimizacion_indices.sql
 ```
 
+La migracion incremental para los MVP 1/2/3 esta en:
+
+```text
+src/main/resources/db/migration/V2__mvp_alertas_iot_autoridad.sql
+```
+
 Para aplicar manualmente en MySQL:
 
 ```bash
 mysql -u usuario -p nombre_db < src/main/resources/db/db_esquema.sql
+mysql -u usuario -p nombre_db < src/main/resources/db/optimizacion_indices.sql
+```
+
+Para una base existente creada con el esquema anterior, aplicar primero la migracion incremental:
+
+```bash
+mysql -u usuario -p nombre_db < src/main/resources/db/migration/V2__mvp_alertas_iot_autoridad.sql
 mysql -u usuario -p nombre_db < src/main/resources/db/optimizacion_indices.sql
 ```
 
@@ -241,6 +256,11 @@ UPLOAD_PUBLIC_BASE_URL=https://upload-aquacomunidad.proyectoutp.com/uploads
 | Usuarios | GET | `/api/v1/usuarios` |
 | Usuarios | PATCH | `/api/v1/usuarios/{id}/rol-estado` |
 | Dashboard | GET | `/api/v1/dashboard/kpis` |
+| Dashboard | GET | `/api/v1/dashboard/exportar-pdf` |
+| Estado del servicio | GET | `/api/v1/estado-servicio/alertas` |
+| Estado del servicio | POST | `/api/v1/estado-servicio/alertas` |
+| IoT | GET | `/api/v1/iot/niveles` |
+| IoT | POST | `/api/v1/iot/lecturas` |
 | Uploads | POST | `/api/v1/uploads/reportes` |
 | Uploads | POST | `/api/v1/uploads/casos` |
 | Chatbot | POST | `/api/v1/chatbot/mensajes` |
@@ -253,6 +273,7 @@ UPLOAD_PUBLIC_BASE_URL=https://upload-aquacomunidad.proyectoutp.com/uploads
 |---|---|
 | `CIUDADANO` | Crear reportes, ver sus reportes, consultar trazabilidad propia y usar el asistente |
 | `OPERADOR` | Ver reportes, crear/actualizar casos y consultar KPIs |
+| `AUTORIDAD` | Consultar reportes, trazabilidad, dashboard, alertas del servicio y niveles IoT |
 | `ADMIN` | Acceso operativo completo y gestion de usuarios |
 
 ## Pruebas
