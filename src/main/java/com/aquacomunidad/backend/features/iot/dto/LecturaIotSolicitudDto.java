@@ -21,8 +21,16 @@ public class LecturaIotSolicitudDto {
   @DecimalMax("100.0")
   private BigDecimal nivelPorcentaje;
 
+  @DecimalMin("0.0")
   private BigDecimal volumenLitros;
+
+  @DecimalMin("0.0")
+  @DecimalMax("100.0")
   private BigDecimal bateriaPorcentaje;
+
+  @DecimalMin("0.0")
+  @DecimalMax("100.0")
   private BigDecimal senalPorcentaje;
+
   private LocalDateTime leidoEn;
 }
