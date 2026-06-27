@@ -144,11 +144,14 @@ Los indices de optimizacion estan en:
 src/main/resources/db/optimizacion_indices.sql
 ```
 
-La migracion incremental para los MVP 1/2/3 esta en:
+Las migraciones incrementales para los MVP 1/2/3 estan en:
 
 ```text
 src/main/resources/db/migration/V2__mvp_alertas_iot_autoridad.sql
+src/main/resources/db/migration/V3__seed_mvp_demo.sql
 ```
+
+Flyway se ejecuta al iniciar el backend y usa `baseline-on-migrate=true` para bases existentes sin historial previo. `V2` crea las tablas de estado del servicio, autoridad e IoT; `V3` carga datos demo de zonas, infraestructura, lecturas y alertas para presentar el MVP sin carga manual.
 
 Para aplicar manualmente en MySQL:
 
@@ -161,6 +164,7 @@ Para una base existente creada con el esquema anterior, aplicar primero la migra
 
 ```bash
 mysql -u usuario -p nombre_db < src/main/resources/db/migration/V2__mvp_alertas_iot_autoridad.sql
+mysql -u usuario -p nombre_db < src/main/resources/db/migration/V3__seed_mvp_demo.sql
 mysql -u usuario -p nombre_db < src/main/resources/db/optimizacion_indices.sql
 ```
 
