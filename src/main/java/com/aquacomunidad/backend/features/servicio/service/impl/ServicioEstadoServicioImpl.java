@@ -39,6 +39,7 @@ public class ServicioEstadoServicioImpl implements ServicioEstadoServicio {
   @Override
   @Transactional
   public AlertaServicioRespuestaDto crearAlerta(AlertaServicioSolicitudDto request) {
+    validarFechas(request);
     AlertaServicioEntidad alerta = new AlertaServicioEntidad();
     alerta.setZona(resolverZona(request.getZonaId()));
     alerta.setTipo(request.getTipo());
@@ -50,6 +51,13 @@ public class ServicioEstadoServicioImpl implements ServicioEstadoServicio {
     alerta.setFinalizaEn(request.getFinalizaEn());
     alerta.setCreadoPor(SeguridadContextoUtil.usuarioAutenticado());
     return aRespuesta(alertaServicioRepositorio.save(alerta));
+  }
+
+  private void validarFechas(AlertaServicioSolicitudDto request) {
+    if (request.getIniciaEn() != null && request.getFinalizaEn() != null
+        && request.getFinalizaEn().isBefore(request.getIniciaEn())) {
+      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "La fecha de fin no puede ser anterior al inicio");
+    }
   }
 
   private ZonaServicioEntidad resolverZona(Long zonaId) {

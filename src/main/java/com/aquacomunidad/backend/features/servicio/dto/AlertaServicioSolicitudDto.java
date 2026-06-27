@@ -8,6 +8,7 @@ import com.aquacomunidad.backend.common.enums.TipoAlertaServicio;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,9 +21,11 @@ public class AlertaServicioSolicitudDto {
   private TipoAlertaServicio tipo;
 
   @NotBlank
+  @Size(max = 160)
   private String titulo;
 
   @NotBlank
+  @Size(max = 800)
   private String descripcion;
 
   private SeveridadAlertaServicio severidad;
