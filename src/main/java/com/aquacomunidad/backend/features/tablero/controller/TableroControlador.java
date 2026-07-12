@@ -1,10 +1,14 @@
 package com.aquacomunidad.backend.features.tablero.controller;
 
+import java.time.LocalDate;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aquacomunidad.backend.common.response.RespuestaApi;
@@ -24,9 +28,12 @@ public class TableroControlador {
   private final ExportacionPdfServicio exportacionPdfServicio;
 
   @GetMapping("/kpis")
-  public ResponseEntity<RespuestaApi<TableroKpiDto>> getKpis(HttpServletRequest request) {
+  public ResponseEntity<RespuestaApi<TableroKpiDto>> getKpis(
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
+      HttpServletRequest request) {
     return ResponseEntity.ok(
-        RespuestaApi.ok("KPIs obtenidos", dashboardServicio.getKpis(), request.getRequestURI()));
+        RespuestaApi.ok("KPIs obtenidos", dashboardServicio.getKpis(fechaDesde, fechaHasta), request.getRequestURI()));
   }
 
   @GetMapping("/exportar-pdf")
