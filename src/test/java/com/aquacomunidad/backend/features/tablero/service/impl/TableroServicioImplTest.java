@@ -18,6 +18,7 @@ import com.aquacomunidad.backend.features.caso.entity.CasoEntidad;
 import com.aquacomunidad.backend.features.caso.repository.CasoRepositorio;
 import com.aquacomunidad.backend.features.iot.dto.NivelAguaDto;
 import com.aquacomunidad.backend.features.iot.service.IotServicio;
+import com.aquacomunidad.backend.features.reporte.entity.CatalogoTipoIncidenciaEntidad;
 import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoEstado;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoPorZona;
@@ -47,12 +48,19 @@ class TableroServicioImplTest {
     when(reporteRepositorio.contarZonas(org.mockito.ArgumentMatchers.any(Pageable.class))).thenReturn(List.of(
         conteoZona("Sector 4", 8),
         conteoZona("Centro", 2)));
+    when(reporteRepositorio.findAll()).thenReturn(List.of(
+        reporte("Sector 4", "Fuga de agua", LocalDateTime.parse("2026-07-02T08:00:00")),
+        reporte("Sector 4", "Fuga de agua", LocalDateTime.parse("2026-08-02T08:00:00")),
+        reporte("Sector 4", "Baja presión", LocalDateTime.parse("2026-08-03T08:00:00")),
+        reporte("Centro", "Agua turbia", LocalDateTime.parse("2026-09-02T08:00:00")),
+        reporte("Centro", "Fuga de agua", LocalDateTime.parse("2026-09-03T08:00:00")),
+        reporte("Centro", "Fuga de agua", LocalDateTime.parse("2026-09-04T08:00:00"))));
     when(reporteRepositorio.findByFechaCreacionBetweenOrderByFechaCreacionAsc(
         org.mockito.ArgumentMatchers.any(LocalDateTime.class),
         org.mockito.ArgumentMatchers.any(LocalDateTime.class))).thenReturn(List.of(
-            reporte("Sector 4", LocalDateTime.now().minusDays(4)),
-            reporte("Sector 4", LocalDateTime.now().minusDays(2)),
-            reporte("Centro", LocalDateTime.now().minusDays(20))));
+            reporte("Sector 4", "Fuga de agua", LocalDateTime.now().minusDays(4)),
+            reporte("Sector 4", "Fuga de agua", LocalDateTime.now().minusDays(2)),
+            reporte("Centro", "Agua turbia", LocalDateTime.now().minusDays(20))));
     when(iotServicio.listarNiveles()).thenReturn(List.of(NivelAguaDto.builder()
         .infraestructuraId(1L)
         .nombre("Reservorio Norte")
@@ -65,7 +73,14 @@ class TableroServicioImplTest {
     var kpis = servicio.getKpis();
 
     assertThat(kpis.getCasosResueltos()).isEqualTo(3);
+    assertThat(kpis.getTotalReportes()).isEqualTo(6);
     assertThat(kpis.getPromedioHorasResolucion()).isEqualTo(11.67);
+    assertThat(kpis.getReportesPorMes()).extracting("mes").contains("Jul", "Ago", "Sep");
+    assertThat(kpis.getReportesPorCategoria()).first().extracting("categoria").isEqualTo("Fuga de agua");
+    assertThat(kpis.getReportesPorEstado()).extracting("estado").contains("Pendientes", "Resueltos");
+    assertThat(kpis.getProyeccionMensual()).hasSize(3);
+    assertThat(kpis.getProyeccionMensual()).extracting("mes").containsExactly("Oct", "Nov", "Dic");
+    assertThat(kpis.getRecomendacionAutomatica()).contains("Priorizar cuadrillas");
     assertThat(kpis.getTiemposPorZona()).extracting("zona").contains("Sector 4", "Centro");
     assertThat(kpis.getZonasCriticas()).first().extracting("zona").isEqualTo("Sector 4");
     assertThat(kpis.getNivelesAgua()).hasSize(1);
@@ -110,9 +125,12 @@ class TableroServicioImplTest {
     return caso;
   }
 
-  private ReporteEntidad reporte(String zona, LocalDateTime fecha) {
+  private ReporteEntidad reporte(String zona, String tipoNombre, LocalDateTime fecha) {
+    CatalogoTipoIncidenciaEntidad tipo = new CatalogoTipoIncidenciaEntidad();
+    tipo.setNombre(tipoNombre);
     ReporteEntidad reporte = new ReporteEntidad();
     reporte.setZona(zona);
+    reporte.setTipo(tipo);
     reporte.setFechaCreacion(fecha);
     return reporte;
   }

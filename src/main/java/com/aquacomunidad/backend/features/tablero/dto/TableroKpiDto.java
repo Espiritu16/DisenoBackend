@@ -10,16 +10,25 @@ import lombok.Getter;
 @Getter
 @Builder
 public class TableroKpiDto {
+  private long totalReportes;
   private long reportesPendientes;
   private long reportesEnProceso;
   private long reportesResueltos;
   private long casosAbiertos;
   private long casosResueltos;
   private double promedioHorasResolucion;
+  private double incrementoEstimadoPorcentaje;
+  private String recomendacionAutomatica;
   private List<ActividadSemanalDto> actividadSemanal;
+  private List<ReportePorMesDto> reportesPorMes;
+  private List<ReportePorCategoriaDto> reportesPorCategoria;
+  private List<ReportePorEstadoDto> reportesPorEstado;
   private List<ReportePorZonaDto> reportesPorZona;
   private List<TiempoAtencionPorZonaDto> tiemposPorZona;
   private List<TendenciaZonaDto> zonasCriticas;
+  private List<ProyeccionMensualDto> proyeccionMensual;
+  private List<CategoriaCrecimientoDto> categoriasConCrecimiento;
+  private List<ZonaRiesgoDto> zonasRiesgo;
   private List<NivelAguaDto> nivelesAgua;
 
   @Getter
@@ -38,6 +47,27 @@ public class TableroKpiDto {
 
   @Getter
   @Builder
+  public static class ReportePorMesDto {
+    private String mes;
+    private long cantidad;
+  }
+
+  @Getter
+  @Builder
+  public static class ReportePorCategoriaDto {
+    private String categoria;
+    private long cantidad;
+  }
+
+  @Getter
+  @Builder
+  public static class ReportePorEstadoDto {
+    private String estado;
+    private long cantidad;
+  }
+
+  @Getter
+  @Builder
   public static class TiempoAtencionPorZonaDto {
     private String zona;
     private double promedioHoras;
@@ -51,5 +81,29 @@ public class TableroKpiDto {
     private long reportesUltimos30Dias;
     private long reportes30DiasPrevios;
     private double variacionPorcentual;
+  }
+
+  @Getter
+  @Builder
+  public static class ProyeccionMensualDto {
+    private String mes;
+    private long estimado;
+  }
+
+  @Getter
+  @Builder
+  public static class CategoriaCrecimientoDto {
+    private String categoria;
+    private long baseActual;
+    private long estimadoSiguienteMes;
+    private double crecimientoPorcentual;
+  }
+
+  @Getter
+  @Builder
+  public static class ZonaRiesgoDto {
+    private String zona;
+    private long reportes;
+    private String nivelRiesgo;
   }
 }
