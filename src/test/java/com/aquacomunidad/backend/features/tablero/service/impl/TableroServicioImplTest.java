@@ -3,6 +3,7 @@ package com.aquacomunidad.backend.features.tablero.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -10,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Pageable;
 
 import com.aquacomunidad.backend.common.enums.EstadoCaso;
 import com.aquacomunidad.backend.common.enums.EstadoReporte;
@@ -20,8 +20,6 @@ import com.aquacomunidad.backend.features.iot.dto.NivelAguaDto;
 import com.aquacomunidad.backend.features.iot.service.IotServicio;
 import com.aquacomunidad.backend.features.reporte.entity.CatalogoTipoIncidenciaEntidad;
 import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
-import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoEstado;
-import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoPorZona;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,31 +34,12 @@ class TableroServicioImplTest {
 
   @Test
   void getKpisIncluyeIndicadoresConsolidadosYZonasCriticas() {
-    when(reporteRepositorio.contarPorEstadoGlobal()).thenReturn(List.of(
-        conteoEstado(EstadoReporte.PENDIENTE, 2),
-        conteoEstado(EstadoReporte.EN_PROCESO, 3),
-        conteoEstado(EstadoReporte.RESUELTO, 5)));
-    when(casoRepositorio.countByEstado(EstadoCaso.EN_PROCESO)).thenReturn(4L);
-    when(casoRepositorio.findByEstado(EstadoCaso.RESUELTO)).thenReturn(List.of(
-        casoResuelto("Sector 4", 10),
-        casoResuelto("Sector 4", 20),
-        casoResuelto("Centro", 5)));
-    when(reporteRepositorio.contarZonas(org.mockito.ArgumentMatchers.any(Pageable.class))).thenReturn(List.of(
-        conteoZona("Sector 4", 8),
-        conteoZona("Centro", 2)));
-    when(reporteRepositorio.findAll()).thenReturn(List.of(
-        reporte("Sector 4", "Fuga de agua", LocalDateTime.parse("2026-07-02T08:00:00")),
-        reporte("Sector 4", "Fuga de agua", LocalDateTime.parse("2026-08-02T08:00:00")),
-        reporte("Sector 4", "Baja presión", LocalDateTime.parse("2026-08-03T08:00:00")),
-        reporte("Centro", "Agua turbia", LocalDateTime.parse("2026-09-02T08:00:00")),
-        reporte("Centro", "Fuga de agua", LocalDateTime.parse("2026-09-03T08:00:00")),
-        reporte("Centro", "Fuga de agua", LocalDateTime.parse("2026-09-04T08:00:00"))));
-    when(reporteRepositorio.findByFechaCreacionBetweenOrderByFechaCreacionAsc(
-        org.mockito.ArgumentMatchers.any(LocalDateTime.class),
-        org.mockito.ArgumentMatchers.any(LocalDateTime.class))).thenReturn(List.of(
-            reporte("Sector 4", "Fuga de agua", LocalDateTime.now().minusDays(4)),
-            reporte("Sector 4", "Fuga de agua", LocalDateTime.now().minusDays(2)),
-            reporte("Centro", "Agua turbia", LocalDateTime.now().minusDays(20))));
+    when(reporteRepositorio.findAll()).thenReturn(reportesDemo());
+    when(casoRepositorio.findAll()).thenReturn(List.of(
+        casoResuelto("Sector 4", "2026-09-02T08:00:00", 10),
+        casoResuelto("Sector 4", "2026-09-03T08:00:00", 20),
+        casoResuelto("Centro", "2026-09-04T08:00:00", 5),
+        casoEnProceso("Ate", "2026-09-05T08:00:00")));
     when(iotServicio.listarNiveles()).thenReturn(List.of(NivelAguaDto.builder()
         .infraestructuraId(1L)
         .nombre("Reservorio Norte")
@@ -74,6 +53,10 @@ class TableroServicioImplTest {
 
     assertThat(kpis.getCasosResueltos()).isEqualTo(3);
     assertThat(kpis.getTotalReportes()).isEqualTo(6);
+    assertThat(kpis.getReportesPendientes()).isEqualTo(2);
+    assertThat(kpis.getReportesEnProceso()).isEqualTo(1);
+    assertThat(kpis.getReportesResueltos()).isEqualTo(3);
+    assertThat(kpis.getCasosAbiertos()).isEqualTo(1);
     assertThat(kpis.getPromedioHorasResolucion()).isEqualTo(11.67);
     assertThat(kpis.getReportesPorMes()).extracting("mes").contains("Jul", "Ago", "Sep");
     assertThat(kpis.getReportesPorCategoria()).first().extracting("categoria").isEqualTo("Fuga de agua");
@@ -82,41 +65,44 @@ class TableroServicioImplTest {
     assertThat(kpis.getProyeccionMensual()).extracting("mes").containsExactly("Oct", "Nov", "Dic");
     assertThat(kpis.getRecomendacionAutomatica()).contains("Priorizar cuadrillas");
     assertThat(kpis.getTiemposPorZona()).extracting("zona").contains("Sector 4", "Centro");
-    assertThat(kpis.getZonasCriticas()).first().extracting("zona").isEqualTo("Sector 4");
+    assertThat(kpis.getZonasCriticas()).first().extracting("zona").isEqualTo("Centro");
     assertThat(kpis.getNivelesAgua()).hasSize(1);
   }
 
-  private ReporteConteoEstado conteoEstado(EstadoReporte estado, long total) {
-    return new ReporteConteoEstado() {
-      @Override
-      public EstadoReporte getEstado() {
-        return estado;
-      }
+  @Test
+  void getKpisFiltraPorRangoDeFechas() {
+    when(reporteRepositorio.findAll()).thenReturn(reportesDemo());
+    when(casoRepositorio.findAll()).thenReturn(List.of(
+        casoResuelto("Sector 4", "2026-09-02T08:00:00", 10),
+        casoResuelto("Centro", "2026-08-03T08:00:00", 6)));
+    when(iotServicio.listarNiveles()).thenReturn(List.of());
 
-      @Override
-      public long getTotal() {
-        return total;
-      }
-    };
+    var servicio = new TableroServicioImpl(reporteRepositorio, casoRepositorio, iotServicio);
+
+    var kpis = servicio.getKpis(LocalDate.parse("2026-09-01"), LocalDate.parse("2026-09-30"));
+
+    assertThat(kpis.getTotalReportes()).isEqualTo(3);
+    assertThat(kpis.getReportesResueltos()).isEqualTo(3);
+    assertThat(kpis.getReportesPorMes()).extracting("mes").containsExactly("Sep");
+    assertThat(kpis.getReportesPorCategoria()).extracting("categoria").contains("Fuga de agua", "Agua turbia");
+    assertThat(kpis.getTiemposPorZona()).extracting("zona").containsExactly("Sector 4");
+    assertThat(kpis.getActividadSemanal()).extracting("dia").contains("Hoy");
   }
 
-  private ReporteConteoPorZona conteoZona(String zona, long total) {
-    return new ReporteConteoPorZona() {
-      @Override
-      public String getZona() {
-        return zona;
-      }
-
-      @Override
-      public long getTotal() {
-        return total;
-      }
-    };
+  private List<ReporteEntidad> reportesDemo() {
+    return List.of(
+        reporte("Sector 4", "Fuga de agua", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-07-02T08:00:00")),
+        reporte("Sector 4", "Fuga de agua", EstadoReporte.EN_PROCESO, LocalDateTime.parse("2026-08-02T08:00:00")),
+        reporte("Sector 4", "Baja presión", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-08-03T08:00:00")),
+        reporte("Centro", "Agua turbia", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-09-02T08:00:00")),
+        reporte("Centro", "Fuga de agua", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-09-03T08:00:00")),
+        reporte("Centro", "Fuga de agua", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-09-04T08:00:00")));
   }
 
-  private CasoEntidad casoResuelto(String zona, int horas) {
+  private CasoEntidad casoResuelto(String zona, String fechaReporte, int horas) {
     ReporteEntidad reporte = new ReporteEntidad();
     reporte.setZona(zona);
+    reporte.setFechaCreacion(LocalDateTime.parse(fechaReporte));
     CasoEntidad caso = new CasoEntidad();
     caso.setReporteOrigen(reporte);
     caso.setEstado(EstadoCaso.RESUELTO);
@@ -125,12 +111,23 @@ class TableroServicioImplTest {
     return caso;
   }
 
-  private ReporteEntidad reporte(String zona, String tipoNombre, LocalDateTime fecha) {
+  private CasoEntidad casoEnProceso(String zona, String fechaReporte) {
+    ReporteEntidad reporte = new ReporteEntidad();
+    reporte.setZona(zona);
+    reporte.setFechaCreacion(LocalDateTime.parse(fechaReporte));
+    CasoEntidad caso = new CasoEntidad();
+    caso.setReporteOrigen(reporte);
+    caso.setEstado(EstadoCaso.EN_PROCESO);
+    return caso;
+  }
+
+  private ReporteEntidad reporte(String zona, String tipoNombre, EstadoReporte estado, LocalDateTime fecha) {
     CatalogoTipoIncidenciaEntidad tipo = new CatalogoTipoIncidenciaEntidad();
     tipo.setNombre(tipoNombre);
     ReporteEntidad reporte = new ReporteEntidad();
     reporte.setZona(zona);
     reporte.setTipo(tipo);
+    reporte.setEstado(estado);
     reporte.setFechaCreacion(fecha);
     return reporte;
   }

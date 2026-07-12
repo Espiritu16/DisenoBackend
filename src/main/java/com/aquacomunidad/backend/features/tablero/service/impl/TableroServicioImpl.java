@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +25,6 @@ import com.aquacomunidad.backend.features.caso.entity.CasoEntidad;
 import com.aquacomunidad.backend.features.caso.repository.CasoRepositorio;
 import com.aquacomunidad.backend.features.iot.service.IotServicio;
 import com.aquacomunidad.backend.features.reporte.entity.ReporteEntidad;
-import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoPorZona;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ActividadSemanalDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.CategoriaCrecimientoDto;
@@ -39,7 +37,6 @@ import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.TendenciaZon
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.TiempoAtencionPorZonaDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ZonaRiesgoDto;
 import com.aquacomunidad.backend.features.tablero.service.TableroServicio;
-import com.aquacomunidad.backend.features.reporte.repository.ReporteConteoEstado;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
 
 import lombok.RequiredArgsConstructor;
@@ -55,15 +52,23 @@ public class TableroServicioImpl implements TableroServicio {
   @Override
   @Transactional(readOnly = true)
   public TableroKpiDto getKpis() {
-    Map<EstadoReporte, Long> reportesPorEstado = reporteRepositorio.contarPorEstadoGlobal()
-        .stream()
-        .collect(Collectors.toMap(
-            ReporteConteoEstado::getEstado,
-            ReporteConteoEstado::getTotal,
-            (actual, reemplazo) -> actual,
-            () -> new EnumMap<>(EstadoReporte.class)));
-    List<ReporteEntidad> reportes = reporteRepositorio.findAll();
-    List<CasoEntidad> casosResueltos = casoRepositorio.findByEstado(EstadoCaso.RESUELTO);
+    return getKpis(null, null);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public TableroKpiDto getKpis(LocalDate fechaDesde, LocalDate fechaHasta) {
+    RangoFechas rango = normalizarRango(fechaDesde, fechaHasta);
+    List<ReporteEntidad> reportes = filtrarReportes(reporteRepositorio.findAll(), rango);
+    List<CasoEntidad> casos = filtrarCasos(casoRepositorio.findAll(), rango);
+    List<CasoEntidad> casosResueltos = casos.stream()
+        .filter(caso -> caso.getEstado() == EstadoCaso.RESUELTO)
+        .toList();
+    Map<EstadoReporte, Long> reportesPorEstado = reportes.stream()
+        .collect(Collectors.groupingBy(
+            ReporteEntidad::getEstado,
+            () -> new EnumMap<>(EstadoReporte.class),
+            Collectors.counting()));
     List<ReportePorMesDto> reportesPorMes = reportesPorMes(reportes);
     double incrementoEstimado = incrementoEstimado(reportesPorMes);
 
@@ -72,18 +77,18 @@ public class TableroServicioImpl implements TableroServicio {
         .reportesPendientes(reportesPorEstado.getOrDefault(EstadoReporte.PENDIENTE, 0L))
         .reportesEnProceso(reportesPorEstado.getOrDefault(EstadoReporte.EN_PROCESO, 0L))
         .reportesResueltos(reportesPorEstado.getOrDefault(EstadoReporte.RESUELTO, 0L))
-        .casosAbiertos(casoRepositorio.countByEstado(EstadoCaso.EN_PROCESO))
+        .casosAbiertos(casos.stream().filter(caso -> caso.getEstado() == EstadoCaso.EN_PROCESO).count())
         .casosResueltos(casosResueltos.size())
         .promedioHorasResolucion(promedioHorasResolucion(casosResueltos))
         .incrementoEstimadoPorcentaje(incrementoEstimado)
         .recomendacionAutomatica(recomendacionAutomatica(reportes, incrementoEstimado))
-        .actividadSemanal(actividadSemanal())
+        .actividadSemanal(actividadSemanal(reportes, rango))
         .reportesPorMes(reportesPorMes)
         .reportesPorCategoria(reportesPorCategoria(reportes))
         .reportesPorEstado(reportesPorEstado(reportesPorEstado))
-        .reportesPorZona(reportesPorZona())
+        .reportesPorZona(reportesPorZona(reportes))
         .tiemposPorZona(tiemposPorZona(casosResueltos))
-        .zonasCriticas(zonasCriticas())
+        .zonasCriticas(zonasCriticas(reportes))
         .proyeccionMensual(proyeccionMensual(reportes, reportesPorMes, incrementoEstimado))
         .categoriasConCrecimiento(categoriasConCrecimiento(reportes))
         .zonasRiesgo(zonasRiesgo(reportes))
@@ -91,35 +96,49 @@ public class TableroServicioImpl implements TableroServicio {
         .build();
   }
 
-  private List<ActividadSemanalDto> actividadSemanal() {
-    LocalDate hoy = LocalDate.now();
-    LocalDate inicio = hoy.minusDays(6);
-    LocalDateTime desde = inicio.atStartOfDay();
-    LocalDateTime hasta = hoy.plusDays(1).atStartOfDay();
+  private List<ActividadSemanalDto> actividadSemanal(List<ReporteEntidad> reportes, RangoFechas rango) {
+    LocalDate fin = rango.fechaHasta() != null
+        ? rango.fechaHasta()
+        : reportes.stream()
+            .filter(reporte -> reporte.getFechaCreacion() != null)
+            .map(reporte -> reporte.getFechaCreacion().toLocalDate())
+            .max(Comparator.naturalOrder())
+            .orElse(LocalDate.now());
+    LocalDate inicio = rango.fechaDesde() != null ? rango.fechaDesde() : fin.minusDays(6);
+    if (inicio.isBefore(fin.minusDays(13))) {
+      inicio = fin.minusDays(13);
+    }
 
-    Map<LocalDate, Long> conteoPorDia = reporteRepositorio.contarPorDia(desde, hasta)
-        .stream()
-        .collect(Collectors.toMap(
-            conteo -> conteo.getFecha(),
-            conteo -> conteo.getTotal(),
-            (actual, reemplazo) -> actual,
-            LinkedHashMap::new));
+    Map<LocalDate, Long> conteoPorDia = reportes.stream()
+        .filter(reporte -> reporte.getFechaCreacion() != null)
+        .collect(Collectors.groupingBy(
+            reporte -> reporte.getFechaCreacion().toLocalDate(),
+            LinkedHashMap::new,
+            Collectors.counting()));
 
-    return IntStream.rangeClosed(0, 6)
+    long totalDias = Duration.between(inicio.atStartOfDay(), fin.plusDays(1).atStartOfDay()).toDays();
+    return IntStream.range(0, Math.toIntExact(Math.max(1, totalDias)))
         .mapToObj(inicio::plusDays)
         .map(dia -> ActividadSemanalDto.builder()
-            .dia(etiquetaDia(dia, hoy))
+            .dia(etiquetaDia(dia, fin))
             .valor(conteoPorDia.getOrDefault(dia, 0L))
             .build())
         .toList();
   }
 
-  private List<ReportePorZonaDto> reportesPorZona() {
-    return reporteRepositorio.contarZonas(PageRequest.of(0, 5))
+  private List<ReportePorZonaDto> reportesPorZona(List<ReporteEntidad> reportes) {
+    return reportes.stream()
+        .collect(Collectors.groupingBy(
+            reporte -> normalizarZona(reporte.getZona()),
+            LinkedHashMap::new,
+            Collectors.counting()))
+        .entrySet()
         .stream()
-        .map(conteo -> ReportePorZonaDto.builder()
-            .nombre(normalizarZona(conteo.getZona()))
-            .cantidad(conteo.getTotal())
+        .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
+        .limit(5)
+        .map(entry -> ReportePorZonaDto.builder()
+            .nombre(entry.getKey())
+            .cantidad(entry.getValue())
             .build())
         .toList();
   }
@@ -283,23 +302,26 @@ public class TableroServicioImpl implements TableroServicio {
         .toList();
   }
 
-  private List<TendenciaZonaDto> zonasCriticas() {
-    LocalDateTime hasta = LocalDate.now().plusDays(1).atStartOfDay();
-    LocalDateTime inicioActual = LocalDate.now().minusDays(29).atStartOfDay();
-    LocalDateTime inicioPrevio = LocalDate.now().minusDays(59).atStartOfDay();
-    Map<String, List<ReporteEntidad>> reportesPorZona = reporteRepositorio
-        .findByFechaCreacionBetweenOrderByFechaCreacionAsc(inicioPrevio, hasta)
-        .stream()
+  private List<TendenciaZonaDto> zonasCriticas(List<ReporteEntidad> reportes) {
+    LocalDateTime fechaMaxima = reportes.stream()
+        .filter(reporte -> reporte.getFechaCreacion() != null)
+        .map(ReporteEntidad::getFechaCreacion)
+        .max(Comparator.naturalOrder())
+        .orElse(LocalDateTime.now());
+    LocalDateTime inicioActual = fechaMaxima.minusDays(29);
+    Map<String, List<ReporteEntidad>> reportesPorZona = reportes.stream()
         .collect(Collectors.groupingBy(
             reporte -> normalizarZona(reporte.getZona()),
             LinkedHashMap::new,
             Collectors.toList()));
 
-    return reporteRepositorio.contarZonas(PageRequest.of(0, 5))
+    return reportesPorZona.entrySet()
         .stream()
-        .map(ReporteConteoPorZona::getZona)
-        .map(this::normalizarZona)
-        .map(zona -> tendenciaZona(zona, reportesPorZona.getOrDefault(zona, List.of()), inicioActual))
+        .sorted(Comparator.<Map.Entry<String, List<ReporteEntidad>>>comparingInt(entry -> entry.getValue().size())
+            .reversed()
+            .thenComparing(Map.Entry::getKey))
+        .limit(5)
+        .map(entry -> tendenciaZona(entry.getKey(), entry.getValue(), inicioActual))
         .toList();
   }
 
@@ -426,5 +448,38 @@ public class TableroServicioImpl implements TableroServicio {
       return "Sin zona";
     }
     return zona.trim();
+  }
+
+  private RangoFechas normalizarRango(LocalDate fechaDesde, LocalDate fechaHasta) {
+    if (fechaDesde != null && fechaHasta != null && fechaDesde.isAfter(fechaHasta)) {
+      return new RangoFechas(fechaHasta, fechaDesde);
+    }
+    return new RangoFechas(fechaDesde, fechaHasta);
+  }
+
+  private List<ReporteEntidad> filtrarReportes(List<ReporteEntidad> reportes, RangoFechas rango) {
+    return reportes.stream()
+        .filter(reporte -> estaEnRango(reporte.getFechaCreacion(), rango))
+        .toList();
+  }
+
+  private List<CasoEntidad> filtrarCasos(List<CasoEntidad> casos, RangoFechas rango) {
+    return casos.stream()
+        .filter(caso -> caso.getReporteOrigen() != null)
+        .filter(caso -> estaEnRango(caso.getReporteOrigen().getFechaCreacion(), rango))
+        .toList();
+  }
+
+  private boolean estaEnRango(LocalDateTime fecha, RangoFechas rango) {
+    if (fecha == null) {
+      return false;
+    }
+    if (rango.fechaDesde() != null && fecha.isBefore(rango.fechaDesde().atStartOfDay())) {
+      return false;
+    }
+    return rango.fechaHasta() == null || fecha.isBefore(rango.fechaHasta().plusDays(1).atStartOfDay());
+  }
+
+  private record RangoFechas(LocalDate fechaDesde, LocalDate fechaHasta) {
   }
 }
