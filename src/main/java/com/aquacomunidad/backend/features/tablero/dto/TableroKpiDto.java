@@ -14,6 +14,7 @@ public class TableroKpiDto {
   private long reportesPendientes;
   private long reportesEnProceso;
   private long reportesResueltos;
+  private long totalCiudadanosReportantes;
   private long casosAbiertos;
   private long casosResueltos;
   private double promedioHorasResolucion;
@@ -21,6 +22,7 @@ public class TableroKpiDto {
   private String recomendacionAutomatica;
   private List<ActividadSemanalDto> actividadSemanal;
   private List<ReportePorMesDto> reportesPorMes;
+  private List<UsuarioReportantePorMesDto> usuariosReportantesPorMes;
   private List<ReportePorCategoriaDto> reportesPorCategoria;
   private List<ReportePorEstadoDto> reportesPorEstado;
   private List<ReportePorZonaDto> reportesPorZona;
@@ -48,6 +50,13 @@ public class TableroKpiDto {
   @Getter
   @Builder
   public static class ReportePorMesDto {
+    private String mes;
+    private long cantidad;
+  }
+
+  @Getter
+  @Builder
+  public static class UsuarioReportantePorMesDto {
     private String mes;
     private long cantidad;
   }
