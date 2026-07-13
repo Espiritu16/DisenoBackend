@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -35,6 +36,7 @@ import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ReportePorMe
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ReportePorZonaDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.TendenciaZonaDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.TiempoAtencionPorZonaDto;
+import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.UsuarioReportantePorMesDto;
 import com.aquacomunidad.backend.features.tablero.dto.TableroKpiDto.ZonaRiesgoDto;
 import com.aquacomunidad.backend.features.tablero.service.TableroServicio;
 import com.aquacomunidad.backend.features.reporte.repository.ReporteRepositorio;
@@ -77,6 +79,7 @@ public class TableroServicioImpl implements TableroServicio {
         .reportesPendientes(reportesPorEstado.getOrDefault(EstadoReporte.PENDIENTE, 0L))
         .reportesEnProceso(reportesPorEstado.getOrDefault(EstadoReporte.EN_PROCESO, 0L))
         .reportesResueltos(reportesPorEstado.getOrDefault(EstadoReporte.RESUELTO, 0L))
+        .totalCiudadanosReportantes(totalCiudadanosReportantes(reportes))
         .casosAbiertos(casos.stream().filter(caso -> caso.getEstado() == EstadoCaso.EN_PROCESO).count())
         .casosResueltos(casosResueltos.size())
         .promedioHorasResolucion(promedioHorasResolucion(casosResueltos))
@@ -84,6 +87,7 @@ public class TableroServicioImpl implements TableroServicio {
         .recomendacionAutomatica(recomendacionAutomatica(reportes, incrementoEstimado))
         .actividadSemanal(actividadSemanal(reportes, rango))
         .reportesPorMes(reportesPorMes)
+        .usuariosReportantesPorMes(usuariosReportantesPorMes(reportes))
         .reportesPorCategoria(reportesPorCategoria(reportes))
         .reportesPorEstado(reportesPorEstado(reportesPorEstado))
         .reportesPorZona(reportesPorZona(reportes))
@@ -157,6 +161,25 @@ public class TableroServicioImpl implements TableroServicio {
         .map(entry -> ReportePorMesDto.builder()
             .mes(etiquetaMes(entry.getKey()))
             .cantidad(entry.getValue())
+            .build())
+        .toList();
+  }
+
+  private List<UsuarioReportantePorMesDto> usuariosReportantesPorMes(List<ReporteEntidad> reportes) {
+    Map<YearMonth, Set<Long>> usuariosPorMes = reportes.stream()
+        .filter(reporte -> reporte.getFechaCreacion() != null)
+        .filter(reporte -> reporte.getUsuario() != null && reporte.getUsuario().getId() != null)
+        .collect(Collectors.groupingBy(
+            reporte -> YearMonth.from(reporte.getFechaCreacion()),
+            LinkedHashMap::new,
+            Collectors.mapping(reporte -> reporte.getUsuario().getId(), Collectors.toSet())));
+
+    return usuariosPorMes.entrySet()
+        .stream()
+        .sorted(Map.Entry.comparingByKey())
+        .map(entry -> UsuarioReportantePorMesDto.builder()
+            .mes(etiquetaMes(entry.getKey()))
+            .cantidad(entry.getValue().size())
             .build())
         .toList();
   }
@@ -276,6 +299,14 @@ public class TableroServicioImpl implements TableroServicio {
         .mapToDouble(this::horasResolucion)
         .average()
         .orElse(0D));
+  }
+
+  private long totalCiudadanosReportantes(List<ReporteEntidad> reportes) {
+    return reportes.stream()
+        .filter(reporte -> reporte.getUsuario() != null && reporte.getUsuario().getId() != null)
+        .map(reporte -> reporte.getUsuario().getId())
+        .distinct()
+        .count();
   }
 
   private List<TiempoAtencionPorZonaDto> tiemposPorZona(List<CasoEntidad> casosResueltos) {
