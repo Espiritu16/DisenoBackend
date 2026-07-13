@@ -96,6 +96,21 @@ class TableroServicioImplTest {
     assertThat(kpis.getActividadSemanal()).extracting("dia").contains("Hoy");
   }
 
+  @Test
+  void getKpisProyectaTresMesesSinCopiarElUltimoValorCuandoHayVariacionHistorica() {
+    when(reporteRepositorio.findAll()).thenReturn(reportesConVariacionMensual());
+    when(casoRepositorio.findAll()).thenReturn(List.of());
+    when(iotServicio.listarNiveles()).thenReturn(List.of());
+
+    var servicio = new TableroServicioImpl(reporteRepositorio, casoRepositorio, iotServicio);
+
+    var kpis = servicio.getKpis();
+
+    assertThat(kpis.getReportesPorMes()).extracting("mes").containsExactly("Jun", "Jul", "Ago", "Sep");
+    assertThat(kpis.getProyeccionMensual()).extracting("mes").containsExactly("Oct", "Nov", "Dic");
+    assertThat(kpis.getProyeccionMensual()).extracting("estimado").containsExactly(32L, 34L, 36L);
+  }
+
   private List<ReporteEntidad> reportesDemo() {
     return List.of(
         reporte(1L, "Sector 4", "Fuga de agua", EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-07-02T08:00:00")),
@@ -104,6 +119,33 @@ class TableroServicioImplTest {
         reporte(2L, "Centro", "Agua turbia", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-09-02T08:00:00")),
         reporte(3L, "Centro", "Fuga de agua", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-09-03T08:00:00")),
         reporte(3L, "Centro", "Fuga de agua", EstadoReporte.RESUELTO, LocalDateTime.parse("2026-09-04T08:00:00")));
+  }
+
+  private List<ReporteEntidad> reportesConVariacionMensual() {
+    return java.util.stream.Stream.of(
+        reportesDelMes(1L, "Ate", "Agua turbia", EstadoReporte.RESUELTO, "2026-06", 2),
+        reportesDelMes(20L, "Ate", "Agua turbia", EstadoReporte.RESUELTO, "2026-07", 59),
+        reportesDelMes(90L, "Callao", "Fuga de agua", EstadoReporte.EN_PROCESO, "2026-08", 31),
+        reportesDelMes(140L, "Comas", "Baja presión", EstadoReporte.PENDIENTE, "2026-09", 30))
+        .flatMap(List::stream)
+        .toList();
+  }
+
+  private List<ReporteEntidad> reportesDelMes(
+      long usuarioInicial,
+      String zona,
+      String tipoNombre,
+      EstadoReporte estado,
+      String mes,
+      int cantidad) {
+    return java.util.stream.IntStream.range(0, cantidad)
+        .mapToObj(index -> reporte(
+            usuarioInicial + index,
+            zona,
+            tipoNombre,
+            estado,
+            LocalDateTime.parse(mes + "-" + String.format("%02d", (index % 28) + 1) + "T08:00:00")))
+        .toList();
   }
 
   private CasoEntidad casoResuelto(String zona, String fechaReporte, int horas) {

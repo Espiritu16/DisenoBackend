@@ -217,18 +217,65 @@ public class TableroServicioImpl implements TableroServicio {
       List<ReportePorMesDto> reportesPorMes,
       double incrementoEstimado) {
     long base = reportesPorMes.isEmpty() ? 0L : reportesPorMes.get(reportesPorMes.size() - 1).getCantidad();
-    double factor = 1D + (incrementoEstimado / 100D);
+    double tendencia = tendenciaMensualProyectada(reportesPorMes, base, incrementoEstimado);
     YearMonth inicio = ultimoMesReportado(reportes).plusMonths(1);
 
     return IntStream.rangeClosed(0, 2)
         .mapToObj(offset -> {
-          long estimado = Math.max(0L, Math.round(base * Math.pow(factor, offset + 1)));
+          long estimado = Math.max(0L, Math.round(base + (tendencia * (offset + 1))));
           return ProyeccionMensualDto.builder()
               .mes(etiquetaMes(inicio.plusMonths(offset)))
               .estimado(estimado)
               .build();
         })
         .toList();
+  }
+
+  private double tendenciaMensualProyectada(
+      List<ReportePorMesDto> reportesPorMes,
+      long base,
+      double incrementoEstimado) {
+    if (reportesPorMes.size() < 2 || base == 0L) {
+      return 0D;
+    }
+
+    double tendencia = tendenciaPonderada(reportesPorMes);
+    if (Math.abs(tendencia) < 1D && tieneVariacionMensual(reportesPorMes)) {
+      tendencia = Math.max(1D, Math.round(promedioMensual(reportesPorMes) * 0.06D));
+    }
+
+    if (tendencia == 0D && incrementoEstimado > 0D) {
+      tendencia = Math.max(1D, base * (incrementoEstimado / 100D));
+    }
+
+    double limite = Math.max(1D, base * 0.2D);
+    return Math.max(-limite, Math.min(limite, tendencia));
+  }
+
+  private double tendenciaPonderada(List<ReportePorMesDto> reportesPorMes) {
+    double sumaPonderada = 0D;
+    int sumaPesos = 0;
+    for (int index = 1; index < reportesPorMes.size(); index++) {
+      int peso = index;
+      long actual = reportesPorMes.get(index).getCantidad();
+      long previo = reportesPorMes.get(index - 1).getCantidad();
+      sumaPonderada += (actual - previo) * peso;
+      sumaPesos += peso;
+    }
+    return sumaPesos == 0 ? 0D : sumaPonderada / sumaPesos;
+  }
+
+  private boolean tieneVariacionMensual(List<ReportePorMesDto> reportesPorMes) {
+    long minimo = reportesPorMes.stream().mapToLong(ReportePorMesDto::getCantidad).min().orElse(0L);
+    long maximo = reportesPorMes.stream().mapToLong(ReportePorMesDto::getCantidad).max().orElse(0L);
+    return maximo - minimo >= Math.max(2L, Math.round(promedioMensual(reportesPorMes) * 0.1D));
+  }
+
+  private double promedioMensual(List<ReportePorMesDto> reportesPorMes) {
+    return reportesPorMes.stream()
+        .mapToLong(ReportePorMesDto::getCantidad)
+        .average()
+        .orElse(0D);
   }
 
   private YearMonth ultimoMesReportado(List<ReporteEntidad> reportes) {
