@@ -197,10 +197,10 @@ public class ReporteServicioImpl implements ReporteServicio {
 
   private CatalogoTipoIncidenciaEntidad resolverTipo(String tipoSolicitado) {
     String tipo = tipoSolicitado == null ? "" : tipoSolicitado.trim();
-    return catalogoTipoIncidenciaRepositorio.findByNombreIgnoreCase(tipo)
-        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCase(tipo))
-        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCase(codigoPorNombreVisible(tipo)))
-        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCase("OTRO"))
+    return catalogoTipoIncidenciaRepositorio.findByNombreIgnoreCaseAndActivoTrue(tipo)
+        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCaseAndActivoTrue(tipo))
+        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCaseAndActivoTrue(codigoPorNombreVisible(tipo)))
+        .or(() -> catalogoTipoIncidenciaRepositorio.findByCodigoIgnoreCaseAndActivoTrue("OTRO"))
         .orElseThrow(() -> new ExcepcionApi(HttpStatus.BAD_REQUEST, "Tipo de incidencia no configurado"));
   }
 
