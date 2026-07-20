@@ -42,8 +42,7 @@ CREATE TABLE `caso_operativo` (
   KEY `idx_caso_prioridad` (`prioridad`),
   CONSTRAINT `fk_caso_creado_por` FOREIGN KEY (`creado_por`) REFERENCES `usuario` (`id_usuario`),
   CONSTRAINT `fk_caso_reporte` FOREIGN KEY (`id_reporte_origen`) REFERENCES `reporte` (`id_reporte`),
-  CONSTRAINT `fk_caso_responsable` FOREIGN KEY (`id_responsable`) REFERENCES `usuario` (`id_usuario`),
-  CONSTRAINT `chk_caso_cierre_evidencia` CHECK (((`estado` <> _utf8mb4'RESUELTO') or ((`estado` = _utf8mb4'RESUELTO') and (`evidencia_cierre` is not null) and (char_length(trim(`evidencia_cierre`)) > 0))))
+  CONSTRAINT `fk_caso_responsable` FOREIGN KEY (`id_responsable`) REFERENCES `usuario` (`id_usuario`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
