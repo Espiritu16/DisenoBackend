@@ -15,12 +15,13 @@ public interface AlertaServicioRepositorio extends JpaRepository<AlertaServicioE
   @Query("""
       select a
       from AlertaServicioEntidad a
+      left join a.zona z
       where a.estado in (
         com.aquacomunidad.backend.common.enums.EstadoAlertaServicio.ACTIVA,
         com.aquacomunidad.backend.common.enums.EstadoAlertaServicio.PROGRAMADA
       )
-        and (:zona is null or a.zona is null or lower(a.zona.nombre) = lower(:zona))
-      order by a.iniciaEn asc nulls last, a.creadoEn desc
+        and (:zona is null or z is null or lower(z.nombre) = lower(:zona))
+      order by a.creadoEn desc
       """)
   List<AlertaServicioEntidad> buscarVigentesPorZona(@Param("zona") String zona);
 }
