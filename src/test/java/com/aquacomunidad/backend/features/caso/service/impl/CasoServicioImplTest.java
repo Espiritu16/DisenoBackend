@@ -55,12 +55,12 @@ class CasoServicioImplTest {
   private CasoServicioImpl casoServicio;
 
   @Test
-  void listarTodosComoAdminUsaOrdenDescendentePorFechaAsignacion() {
+  void listarTodosComoAdminUsaOrdenDescendentePorReporteReciente() {
     setUsuarioEnContexto(usuario(1L, RolUsuario.ADMIN, EstadoUsuario.ACTIVO));
     CasoEntidad caso = new CasoEntidad();
     caso.setId(30L);
     CasoRespuestaDto respuesta = CasoRespuestaDto.builder().id(30L).build();
-    when(casoRepositorio.findAllByOrderByFechaAsignacionDesc()).thenReturn(List.of(caso));
+    when(casoRepositorio.findAllOrdenadoPorReporteReciente()).thenReturn(List.of(caso));
     when(casoMapeador.aRespuesta(caso)).thenReturn(respuesta);
 
     var casos = casoServicio.listarTodos();
@@ -69,12 +69,12 @@ class CasoServicioImplTest {
   }
 
   @Test
-  void listarTodosComoOperadorUsaOrdenDescendentePorFechaAsignacionDelResponsable() {
+  void listarTodosComoOperadorUsaOrdenDescendentePorReporteRecienteDelResponsable() {
     setUsuarioEnContexto(usuario(10L, RolUsuario.OPERADOR, EstadoUsuario.ACTIVO));
     CasoEntidad caso = new CasoEntidad();
     caso.setId(31L);
     CasoRespuestaDto respuesta = CasoRespuestaDto.builder().id(31L).build();
-    when(casoRepositorio.findByResponsableIdOrderByFechaAsignacionDesc(10L)).thenReturn(List.of(caso));
+    when(casoRepositorio.findByResponsableIdOrdenadoPorReporteReciente(10L)).thenReturn(List.of(caso));
     when(casoMapeador.aRespuesta(caso)).thenReturn(respuesta);
 
     var casos = casoServicio.listarTodos();

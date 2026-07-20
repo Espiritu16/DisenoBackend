@@ -184,11 +184,11 @@ public class CasoServicioImpl implements CasoServicio {
   public List<CasoRespuestaDto> listarTodos() {
     UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
     if (actor.getRol() == RolUsuario.OPERADOR) {
-      return casoRepositorio.findByResponsableIdOrderByFechaAsignacionDesc(actor.getId()).stream()
+      return casoRepositorio.findByResponsableIdOrdenadoPorReporteReciente(actor.getId()).stream()
           .map(casoMapeador::aRespuesta)
           .toList();
     }
-    return casoRepositorio.findAllByOrderByFechaAsignacionDesc().stream().map(casoMapeador::aRespuesta).toList();
+    return casoRepositorio.findAllOrdenadoPorReporteReciente().stream().map(casoMapeador::aRespuesta).toList();
   }
 
   @Override
@@ -198,7 +198,7 @@ public class CasoServicioImpl implements CasoServicio {
     if (actor.getRol() == RolUsuario.OPERADOR && !actor.getId().equals(responsableId)) {
       throw new ExcepcionApi(HttpStatus.FORBIDDEN, "No puede ver casos de otro responsable");
     }
-    return casoRepositorio.findByResponsableIdOrderByFechaAsignacionDesc(responsableId).stream()
+    return casoRepositorio.findByResponsableIdOrdenadoPorReporteReciente(responsableId).stream()
         .map(casoMapeador::aRespuesta)
         .toList();
   }
@@ -208,11 +208,11 @@ public class CasoServicioImpl implements CasoServicio {
   public List<CasoRespuestaDto> listarPorEstado(EstadoCaso estado) {
     UsuarioEntidad actor = SeguridadContextoUtil.usuarioAutenticado();
     if (actor.getRol() == RolUsuario.OPERADOR) {
-      return casoRepositorio.findByResponsableIdAndEstadoOrderByFechaAsignacionDesc(actor.getId(), estado).stream()
+      return casoRepositorio.findByResponsableIdAndEstadoOrdenadoPorReporteReciente(actor.getId(), estado).stream()
           .map(casoMapeador::aRespuesta)
           .toList();
     }
-    return casoRepositorio.findByEstadoOrderByFechaAsignacionDesc(estado).stream().map(casoMapeador::aRespuesta).toList();
+    return casoRepositorio.findByEstadoOrdenadoPorReporteReciente(estado).stream().map(casoMapeador::aRespuesta).toList();
   }
 
   private void validarAutorizacionCaso(UsuarioEntidad actor, CasoEntidad caso) {

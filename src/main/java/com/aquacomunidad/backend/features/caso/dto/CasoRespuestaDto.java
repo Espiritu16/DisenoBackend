@@ -14,6 +14,10 @@ import lombok.Getter;
 public class CasoRespuestaDto {
   private Long id;
   private Long reporteId;
+  private String reporteTipo;
+  private String reporteZona;
+  private String reporteDescripcion;
+  private LocalDateTime reporteFechaCreacion;
   private Long responsableId;
   private PrioridadCaso prioridad;
   private EstadoCaso estado;
