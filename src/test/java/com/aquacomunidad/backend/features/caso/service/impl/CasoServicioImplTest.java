@@ -3,6 +3,7 @@ package com.aquacomunidad.backend.features.caso.service.impl;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -111,22 +112,26 @@ class CasoServicioImplTest {
   }
 
   @Test
-  void actualizarEstado_debeRechazarCierreSinEvidencia() {
+  void actualizarEstado_debePermitirCierreSinEvidencia() {
     setUsuarioEnContexto(usuario(1L, RolUsuario.ADMIN, EstadoUsuario.ACTIVO));
 
-    var caso = mock(com.aquacomunidad.backend.features.caso.entity.CasoEntidad.class);
+    var caso = new CasoEntidad();
+    caso.setEstado(EstadoCaso.EN_PROCESO);
     var reporte = new ReporteEntidad();
     reporte.setEstado(EstadoReporte.EN_PROCESO);
-    when(caso.getEstado()).thenReturn(EstadoCaso.EN_PROCESO);
-    when(caso.getReporteOrigen()).thenReturn(reporte);
-    when(caso.getEvidenciaCierre()).thenReturn(null);
+    caso.setReporteOrigen(reporte);
     when(casoRepositorio.findById(50L)).thenReturn(Optional.of(caso));
+    when(casoRepositorio.save(caso)).thenReturn(caso);
 
     CasoActualizacionDto request = new CasoActualizacionDto();
     request.setEstado(EstadoCaso.RESUELTO);
+    request.setObservaciones("Caso atendido por equipo tecnico.");
 
-    ExcepcionApi ex = assertThrows(ExcepcionApi.class, () -> casoServicio.actualizarEstado(50L, request));
-    assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+    casoServicio.actualizarEstado(50L, request);
+
+    assertEquals(EstadoCaso.RESUELTO, caso.getEstado());
+    assertEquals(EstadoReporte.RESUELTO, reporte.getEstado());
+    verify(casoRepositorio).save(caso);
   }
 
   @Test

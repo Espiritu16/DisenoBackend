@@ -116,10 +116,6 @@ public class CasoServicioImpl implements CasoServicio {
     EstadoReporte estadoAnteriorReporte = entity.getReporteOrigen().getEstado();
 
     List<String> evidencias = evidenciasSolicitadas(request);
-    if (request.getEstado() == EstadoCaso.RESUELTO && evidencias.isEmpty()
-        && (entity.getEvidenciaCierre() == null || entity.getEvidenciaCierre().trim().isEmpty())) {
-      throw new ExcepcionApi(HttpStatus.BAD_REQUEST, "Para cerrar como RESUELTO debe enviar evidencia_cierre");
-    }
 
     entity.setEstado(request.getEstado());
     entity.setObservaciones(request.getObservaciones());
