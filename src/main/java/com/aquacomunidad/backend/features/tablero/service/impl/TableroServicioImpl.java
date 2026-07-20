@@ -239,9 +239,12 @@ public class TableroServicioImpl implements TableroServicio {
       return 0D;
     }
 
-    double tendencia = tendenciaPonderada(reportesPorMes);
-    if (Math.abs(tendencia) < 1D && tieneVariacionMensual(reportesPorMes)) {
-      tendencia = Math.max(1D, Math.round(promedioMensual(reportesPorMes) * 0.06D));
+    List<ReportePorMesDto> mesesBase = ultimosMeses(reportesPorMes, 3);
+    double tendencia = tendenciaPonderada(mesesBase);
+    if (tieneVariacionMensual(mesesBase) && tendenciaRecienteEstabilizada(mesesBase, base)) {
+      tendencia = crecimientoPreventivo(base);
+    } else if (Math.abs(tendencia) < 1D && tieneVariacionMensual(mesesBase)) {
+      tendencia = crecimientoPreventivo(base);
     }
 
     if (tendencia == 0D && incrementoEstimado > 0D) {
@@ -250,6 +253,28 @@ public class TableroServicioImpl implements TableroServicio {
 
     double limite = Math.max(1D, base * 0.2D);
     return Math.max(-limite, Math.min(limite, tendencia));
+  }
+
+  private List<ReportePorMesDto> ultimosMeses(List<ReportePorMesDto> reportesPorMes, int cantidad) {
+    int inicio = Math.max(0, reportesPorMes.size() - cantidad);
+    return reportesPorMes.subList(inicio, reportesPorMes.size());
+  }
+
+  private boolean tendenciaRecienteEstabilizada(List<ReportePorMesDto> reportesPorMes, long base) {
+    if (reportesPorMes.size() < 3) {
+      return false;
+    }
+    long antepenultimo = reportesPorMes.get(reportesPorMes.size() - 3).getCantidad();
+    long penultimo = reportesPorMes.get(reportesPorMes.size() - 2).getCantidad();
+    long ultimo = reportesPorMes.get(reportesPorMes.size() - 1).getCantidad();
+    long caidaPrevia = antepenultimo - penultimo;
+    long cambioReciente = Math.abs(ultimo - penultimo);
+    return caidaPrevia >= Math.max(3L, Math.round(antepenultimo * 0.25D))
+        && cambioReciente <= Math.max(2L, Math.round(base * 0.1D));
+  }
+
+  private double crecimientoPreventivo(long base) {
+    return Math.max(1D, Math.round(base * 0.13D));
   }
 
   private double tendenciaPonderada(List<ReportePorMesDto> reportesPorMes) {

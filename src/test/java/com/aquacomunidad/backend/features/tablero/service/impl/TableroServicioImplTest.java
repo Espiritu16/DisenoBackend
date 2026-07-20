@@ -97,7 +97,7 @@ class TableroServicioImplTest {
   }
 
   @Test
-  void getKpisProyectaTresMesesSinCopiarElUltimoValorCuandoHayVariacionHistorica() {
+  void getKpisProyectaTresMesesConCrecimientoPreventivoDesdeUltimosTresMeses() {
     when(reporteRepositorio.findAll()).thenReturn(reportesConVariacionMensual());
     when(casoRepositorio.findAll()).thenReturn(List.of());
     when(iotServicio.listarNiveles()).thenReturn(List.of());
@@ -108,7 +108,7 @@ class TableroServicioImplTest {
 
     assertThat(kpis.getReportesPorMes()).extracting("mes").containsExactly("Jun", "Jul", "Ago", "Sep");
     assertThat(kpis.getProyeccionMensual()).extracting("mes").containsExactly("Oct", "Nov", "Dic");
-    assertThat(kpis.getProyeccionMensual()).extracting("estimado").containsExactly(32L, 34L, 36L);
+    assertThat(kpis.getProyeccionMensual()).extracting("estimado").containsExactly(34L, 38L, 42L);
   }
 
   private List<ReporteEntidad> reportesDemo() {
