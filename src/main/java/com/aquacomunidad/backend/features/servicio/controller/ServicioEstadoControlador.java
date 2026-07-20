@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.aquacomunidad.backend.common.response.RespuestaApi;
 import com.aquacomunidad.backend.features.servicio.dto.AlertaServicioRespuestaDto;
 import com.aquacomunidad.backend.features.servicio.dto.AlertaServicioSolicitudDto;
+import com.aquacomunidad.backend.features.servicio.dto.ZonaServicioRespuestaDto;
 import com.aquacomunidad.backend.features.servicio.service.ServicioEstadoServicio;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +35,14 @@ public class ServicioEstadoControlador {
     return ResponseEntity.ok(RespuestaApi.ok(
         "Alertas del servicio listadas",
         servicioEstadoServicio.listarAlertasVigentes(zona),
+        request.getRequestURI()));
+  }
+
+  @GetMapping("/zonas")
+  public ResponseEntity<RespuestaApi<List<ZonaServicioRespuestaDto>>> listarZonas(HttpServletRequest request) {
+    return ResponseEntity.ok(RespuestaApi.ok(
+        "Zonas del servicio listadas",
+        servicioEstadoServicio.listarZonasActivas(),
         request.getRequestURI()));
   }
 

@@ -11,6 +11,7 @@ import com.aquacomunidad.backend.common.enums.SeveridadAlertaServicio;
 import com.aquacomunidad.backend.exception.ExcepcionApi;
 import com.aquacomunidad.backend.features.servicio.dto.AlertaServicioRespuestaDto;
 import com.aquacomunidad.backend.features.servicio.dto.AlertaServicioSolicitudDto;
+import com.aquacomunidad.backend.features.servicio.dto.ZonaServicioRespuestaDto;
 import com.aquacomunidad.backend.features.servicio.entity.AlertaServicioEntidad;
 import com.aquacomunidad.backend.features.servicio.entity.ZonaServicioEntidad;
 import com.aquacomunidad.backend.features.servicio.repository.AlertaServicioRepositorio;
@@ -33,6 +34,14 @@ public class ServicioEstadoServicioImpl implements ServicioEstadoServicio {
     String filtroZona = zona == null || zona.isBlank() ? null : zona.trim();
     return alertaServicioRepositorio.buscarVigentesPorZona(filtroZona).stream()
         .map(this::aRespuesta)
+        .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<ZonaServicioRespuestaDto> listarZonasActivas() {
+    return zonaServicioRepositorio.findByActivoTrueOrderByNombreAsc().stream()
+        .map(this::aZonaRespuesta)
         .toList();
   }
 
@@ -80,6 +89,14 @@ public class ServicioEstadoServicioImpl implements ServicioEstadoServicio {
         .iniciaEn(alerta.getIniciaEn())
         .finalizaEn(alerta.getFinalizaEn())
         .creadoEn(alerta.getCreadoEn())
+        .build();
+  }
+
+  private ZonaServicioRespuestaDto aZonaRespuesta(ZonaServicioEntidad zona) {
+    return ZonaServicioRespuestaDto.builder()
+        .id(zona.getId())
+        .nombre(zona.getNombre())
+        .codigo(zona.getCodigo())
         .build();
   }
 }

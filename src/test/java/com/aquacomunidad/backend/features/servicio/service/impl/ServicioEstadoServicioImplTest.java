@@ -21,12 +21,16 @@ import com.aquacomunidad.backend.features.servicio.dto.AlertaServicioSolicitudDt
 import com.aquacomunidad.backend.features.servicio.entity.AlertaServicioEntidad;
 import com.aquacomunidad.backend.features.servicio.entity.ZonaServicioEntidad;
 import com.aquacomunidad.backend.features.servicio.repository.AlertaServicioRepositorio;
+import com.aquacomunidad.backend.features.servicio.repository.ZonaServicioRepositorio;
 
 @ExtendWith(MockitoExtension.class)
 class ServicioEstadoServicioImplTest {
 
   @Mock
   private AlertaServicioRepositorio alertaServicioRepositorio;
+
+  @Mock
+  private ZonaServicioRepositorio zonaServicioRepositorio;
 
   @InjectMocks
   private ServicioEstadoServicioImpl servicio;
@@ -73,5 +77,22 @@ class ServicioEstadoServicioImplTest {
     ExcepcionApi ex = assertThrows(ExcepcionApi.class, () -> servicio.crearAlerta(request));
 
     assertThat(ex.getMessage()).isEqualTo("La fecha de fin no puede ser anterior al inicio");
+  }
+
+  @Test
+  void listarZonasActivasDevuelveCatalogoOrdenado() {
+    ZonaServicioEntidad zona = new ZonaServicioEntidad();
+    zona.setId(3L);
+    zona.setNombre("San Miguel");
+    zona.setCodigo("SAN-MIGUEL");
+
+    when(zonaServicioRepositorio.findByActivoTrueOrderByNombreAsc()).thenReturn(List.of(zona));
+
+    var zonas = servicio.listarZonasActivas();
+
+    assertThat(zonas).hasSize(1);
+    assertThat(zonas.get(0).getId()).isEqualTo(3L);
+    assertThat(zonas.get(0).getNombre()).isEqualTo("San Miguel");
+    assertThat(zonas.get(0).getCodigo()).isEqualTo("SAN-MIGUEL");
   }
 }
