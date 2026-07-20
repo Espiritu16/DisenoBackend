@@ -19,10 +19,13 @@ public interface ReporteRepositorio extends JpaRepository<ReporteEntidad, Long> 
   List<ReporteEntidad> findAll();
 
   @EntityGraph(attributePaths = {"usuario", "tipo", "imagenes"})
-  List<ReporteEntidad> findByUsuarioId(Long usuarioId);
+  List<ReporteEntidad> findAllByOrderByFechaCreacionDesc();
 
   @EntityGraph(attributePaths = {"usuario", "tipo", "imagenes"})
-  List<ReporteEntidad> findByEstado(EstadoReporte estado);
+  List<ReporteEntidad> findByUsuarioIdOrderByFechaCreacionDesc(Long usuarioId);
+
+  @EntityGraph(attributePaths = {"usuario", "tipo", "imagenes"})
+  List<ReporteEntidad> findByEstadoOrderByFechaCreacionDesc(EstadoReporte estado);
 
   long countByEstado(EstadoReporte estado);
 

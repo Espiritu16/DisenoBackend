@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,9 @@ import com.aquacomunidad.backend.common.enums.EstadoUsuario;
 import com.aquacomunidad.backend.common.enums.RolUsuario;
 import com.aquacomunidad.backend.exception.ExcepcionApi;
 import com.aquacomunidad.backend.features.caso.dto.CasoActualizacionDto;
+import com.aquacomunidad.backend.features.caso.dto.CasoRespuestaDto;
 import com.aquacomunidad.backend.features.caso.dto.CasoSolicitudDto;
+import com.aquacomunidad.backend.features.caso.entity.CasoEntidad;
 import com.aquacomunidad.backend.features.caso.mapper.CasoMapeador;
 import com.aquacomunidad.backend.features.caso.repository.CasoEvidenciaRepositorio;
 import com.aquacomunidad.backend.features.caso.repository.CasoRepositorio;
@@ -50,6 +53,34 @@ class CasoServicioImplTest {
 
   @InjectMocks
   private CasoServicioImpl casoServicio;
+
+  @Test
+  void listarTodosComoAdminUsaOrdenDescendentePorFechaAsignacion() {
+    setUsuarioEnContexto(usuario(1L, RolUsuario.ADMIN, EstadoUsuario.ACTIVO));
+    CasoEntidad caso = new CasoEntidad();
+    caso.setId(30L);
+    CasoRespuestaDto respuesta = CasoRespuestaDto.builder().id(30L).build();
+    when(casoRepositorio.findAllByOrderByFechaAsignacionDesc()).thenReturn(List.of(caso));
+    when(casoMapeador.aRespuesta(caso)).thenReturn(respuesta);
+
+    var casos = casoServicio.listarTodos();
+
+    assertEquals(30L, casos.get(0).getId());
+  }
+
+  @Test
+  void listarTodosComoOperadorUsaOrdenDescendentePorFechaAsignacionDelResponsable() {
+    setUsuarioEnContexto(usuario(10L, RolUsuario.OPERADOR, EstadoUsuario.ACTIVO));
+    CasoEntidad caso = new CasoEntidad();
+    caso.setId(31L);
+    CasoRespuestaDto respuesta = CasoRespuestaDto.builder().id(31L).build();
+    when(casoRepositorio.findByResponsableIdOrderByFechaAsignacionDesc(10L)).thenReturn(List.of(caso));
+    when(casoMapeador.aRespuesta(caso)).thenReturn(respuesta);
+
+    var casos = casoServicio.listarTodos();
+
+    assertEquals(31L, casos.get(0).getId());
+  }
 
   @Test
   void crear_debeRechazarSiOperadorAsignaAOtro() {

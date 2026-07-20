@@ -51,6 +51,30 @@ class ReporteServicioImplTest {
   private ReporteServicioImpl reporteServicio;
 
   @Test
+  void listarTodosUsaOrdenDescendentePorFechaCreacion() {
+    ReporteEntidad reciente = reporte(9L, EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-05-31T09:00:00"));
+    ReporteRespuestaDto respuesta = ReporteRespuestaDto.builder().id(9L).build();
+    when(reporteRepositorio.findAllByOrderByFechaCreacionDesc()).thenReturn(List.of(reciente));
+    when(reporteMapeador.aRespuesta(reciente)).thenReturn(respuesta);
+
+    var reportes = reporteServicio.listarTodos();
+
+    assertThat(reportes).extracting(ReporteRespuestaDto::getId).containsExactly(9L);
+  }
+
+  @Test
+  void listarMisReportesUsaOrdenDescendentePorFechaCreacion() {
+    ReporteEntidad reciente = reporte(10L, EstadoReporte.PENDIENTE, LocalDateTime.parse("2026-06-01T09:00:00"));
+    ReporteRespuestaDto respuesta = ReporteRespuestaDto.builder().id(10L).build();
+    when(reporteRepositorio.findByUsuarioIdOrderByFechaCreacionDesc(10L)).thenReturn(List.of(reciente));
+    when(reporteMapeador.aRespuesta(reciente)).thenReturn(respuesta);
+
+    var reportes = reporteServicio.listarMisReportes(10L);
+
+    assertThat(reportes).extracting(ReporteRespuestaDto::getId).containsExactly(10L);
+  }
+
+  @Test
   void obtenerResumenMisReportesCuentaEstadosYDevuelveUltimoReporte() {
     when(reporteRepositorio.contarPorEstadoDeUsuario(10L)).thenReturn(List.of(
         conteo(EstadoReporte.PENDIENTE, 1),

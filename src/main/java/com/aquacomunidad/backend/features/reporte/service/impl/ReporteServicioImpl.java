@@ -96,19 +96,19 @@ public class ReporteServicioImpl implements ReporteServicio {
   @Override
   @Transactional(readOnly = true)
   public List<ReporteRespuestaDto> listarTodos() {
-    return reporteRepositorio.findAll().stream().map(reporteMapeador::aRespuesta).toList();
+    return reporteRepositorio.findAllByOrderByFechaCreacionDesc().stream().map(reporteMapeador::aRespuesta).toList();
   }
 
   @Override
   @Transactional(readOnly = true)
   public List<ReporteRespuestaDto> listarPorUsuario(Long usuarioId) {
-    return reporteRepositorio.findByUsuarioId(usuarioId).stream().map(reporteMapeador::aRespuesta).toList();
+    return reporteRepositorio.findByUsuarioIdOrderByFechaCreacionDesc(usuarioId).stream().map(reporteMapeador::aRespuesta).toList();
   }
 
   @Override
   @Transactional(readOnly = true)
   public List<ReporteRespuestaDto> listarPorEstado(EstadoReporte estado) {
-    return reporteRepositorio.findByEstado(estado).stream().map(reporteMapeador::aRespuesta).toList();
+    return reporteRepositorio.findByEstadoOrderByFechaCreacionDesc(estado).stream().map(reporteMapeador::aRespuesta).toList();
   }
 
   @Override
@@ -131,7 +131,7 @@ public class ReporteServicioImpl implements ReporteServicio {
   @Override
   @Transactional(readOnly = true)
   public List<ReporteRespuestaDto> listarMisReportes(Long usuarioId) {
-    return reporteRepositorio.findByUsuarioId(usuarioId).stream().map(reporteMapeador::aRespuesta).toList();
+    return reporteRepositorio.findByUsuarioIdOrderByFechaCreacionDesc(usuarioId).stream().map(reporteMapeador::aRespuesta).toList();
   }
 
   @Override

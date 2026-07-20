@@ -39,7 +39,7 @@ public class UsuarioServicioImpl implements UsuarioServicio {
   @Override
   @Transactional(readOnly = true)
   public List<UsuarioRespuestaDto> listarTodos() {
-    return usuarioRepositorio.findAll().stream().map(usuarioMapeador::aRespuesta).toList();
+    return usuarioRepositorio.findAllByOrderByIdDesc().stream().map(usuarioMapeador::aRespuesta).toList();
   }
 
   @Override

@@ -15,13 +15,16 @@ public interface CasoRepositorio extends JpaRepository<CasoEntidad, Long> {
   List<CasoEntidad> findAll();
 
   @EntityGraph(attributePaths = {"reporteOrigen", "responsable", "evidencias"})
-  List<CasoEntidad> findByResponsableId(Long responsableId);
+  List<CasoEntidad> findAllByOrderByFechaAsignacionDesc();
 
   @EntityGraph(attributePaths = {"reporteOrigen", "responsable", "evidencias"})
-  List<CasoEntidad> findByResponsableIdAndEstado(Long responsableId, EstadoCaso estado);
+  List<CasoEntidad> findByResponsableIdOrderByFechaAsignacionDesc(Long responsableId);
 
   @EntityGraph(attributePaths = {"reporteOrigen", "responsable", "evidencias"})
-  List<CasoEntidad> findByEstado(EstadoCaso estado);
+  List<CasoEntidad> findByResponsableIdAndEstadoOrderByFechaAsignacionDesc(Long responsableId, EstadoCaso estado);
+
+  @EntityGraph(attributePaths = {"reporteOrigen", "responsable", "evidencias"})
+  List<CasoEntidad> findByEstadoOrderByFechaAsignacionDesc(EstadoCaso estado);
 
   long countByEstado(EstadoCaso estado);
 
