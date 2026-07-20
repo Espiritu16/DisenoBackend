@@ -79,6 +79,7 @@ public class ServicioEstadoServicioImpl implements ServicioEstadoServicio {
         .zona(alerta.getZona() == null ? null : alerta.getZona().getNombre())
         .iniciaEn(alerta.getIniciaEn())
         .finalizaEn(alerta.getFinalizaEn())
+        .creadoEn(alerta.getCreadoEn())
         .build();
   }
 }

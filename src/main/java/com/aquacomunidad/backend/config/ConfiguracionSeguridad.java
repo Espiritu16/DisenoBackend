@@ -58,7 +58,7 @@ public class ConfiguracionSeguridad {
             .requestMatchers(HttpMethod.POST, "/api/v1/chatbot/mensajes").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/v1/chatbot/**").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/v1/estado-servicio/**")
-            .hasAnyRole("CIUDADANO", "ADMIN", "OPERADOR", "AUTORIDAD")
+            .permitAll()
             .requestMatchers(HttpMethod.POST, "/api/v1/estado-servicio/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PUT, "/api/v1/estado-servicio/**").hasRole("ADMIN")
             .requestMatchers(HttpMethod.PATCH, "/api/v1/estado-servicio/**").hasRole("ADMIN")

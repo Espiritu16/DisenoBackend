@@ -1,6 +1,7 @@
 package com.aquacomunidad.backend.config;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,6 +83,12 @@ class ConfiguracionWebCorsTest {
         .header("Access-Control-Request-Method", "POST"))
         .andExpect(status().isOk())
         .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:4200"));
+  }
+
+  @Test
+  void permiteConsultarAlertasDelServicioSinSesion() throws Exception {
+    mockMvc.perform(get("/api/v1/estado-servicio/alertas"))
+        .andExpect(status().isOk());
   }
 
   @Test

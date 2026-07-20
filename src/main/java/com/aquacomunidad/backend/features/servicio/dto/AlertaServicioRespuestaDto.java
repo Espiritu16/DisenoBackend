@@ -21,4 +21,5 @@ public class AlertaServicioRespuestaDto {
   private String zona;
   private LocalDateTime iniciaEn;
   private LocalDateTime finalizaEn;
+  private LocalDateTime creadoEn;
 }

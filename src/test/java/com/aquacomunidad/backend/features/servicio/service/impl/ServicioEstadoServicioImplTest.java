@@ -46,6 +46,7 @@ class ServicioEstadoServicioImplTest {
     alerta.setEstado(EstadoAlertaServicio.PROGRAMADA);
     alerta.setIniciaEn(LocalDateTime.parse("2026-06-22T14:00:00"));
     alerta.setFinalizaEn(LocalDateTime.parse("2026-06-22T16:00:00"));
+    alerta.setCreadoEn(LocalDateTime.parse("2026-06-21T09:30:00"));
 
     when(alertaServicioRepositorio.buscarVigentesPorZona("San Isidro")).thenReturn(List.of(alerta));
 
@@ -55,6 +56,9 @@ class ServicioEstadoServicioImplTest {
     assertThat(alertas.get(0).getId()).isEqualTo(8L);
     assertThat(alertas.get(0).getZona()).isEqualTo("San Isidro");
     assertThat(alertas.get(0).getTipo()).isEqualTo(TipoAlertaServicio.CORTE_PROGRAMADO);
+    assertThat(alertas.get(0).getIniciaEn()).isEqualTo(LocalDateTime.parse("2026-06-22T14:00:00"));
+    assertThat(alertas.get(0).getFinalizaEn()).isEqualTo(LocalDateTime.parse("2026-06-22T16:00:00"));
+    assertThat(alertas.get(0).getCreadoEn()).isEqualTo(LocalDateTime.parse("2026-06-21T09:30:00"));
   }
 
   @Test
