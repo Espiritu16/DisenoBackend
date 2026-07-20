@@ -3,6 +3,7 @@ package com.aquacomunidad.backend.features.caso.service.impl;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -132,6 +133,37 @@ class CasoServicioImplTest {
     assertEquals(EstadoCaso.RESUELTO, caso.getEstado());
     assertEquals(EstadoReporte.RESUELTO, reporte.getEstado());
     verify(casoRepositorio).save(caso);
+  }
+
+  @Test
+  void actualizarEstado_debeIgnorarGuardadoSinCambiosParaNoDuplicarHistorial() {
+    setUsuarioEnContexto(usuario(1L, RolUsuario.ADMIN, EstadoUsuario.ACTIVO));
+
+    var caso = new CasoEntidad();
+    caso.setId(51L);
+    caso.setEstado(EstadoCaso.ESCALADO);
+    caso.setObservaciones("Revision en curso");
+    var reporte = new ReporteEntidad();
+    reporte.setEstado(EstadoReporte.ESCALADO);
+    caso.setReporteOrigen(reporte);
+    CasoRespuestaDto respuesta = CasoRespuestaDto.builder().id(51L).estado(EstadoCaso.ESCALADO).build();
+    when(casoRepositorio.findById(51L)).thenReturn(Optional.of(caso));
+    when(casoMapeador.aRespuesta(caso)).thenReturn(respuesta);
+
+    CasoActualizacionDto request = new CasoActualizacionDto();
+    request.setEstado(EstadoCaso.ESCALADO);
+    request.setObservaciones(" Revision en curso ");
+
+    CasoRespuestaDto result = casoServicio.actualizarEstado(51L, request);
+
+    assertEquals(51L, result.getId());
+    verify(casoRepositorio, never()).save(caso);
+    verify(historialEstadoServicio, never()).registrarCambioCaso(
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any());
   }
 
   @Test

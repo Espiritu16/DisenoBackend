@@ -3,6 +3,7 @@ package com.aquacomunidad.backend.features.caso.service.impl;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -116,6 +117,9 @@ public class CasoServicioImpl implements CasoServicio {
     EstadoReporte estadoAnteriorReporte = entity.getReporteOrigen().getEstado();
 
     List<String> evidencias = evidenciasSolicitadas(request);
+    if (esActualizacionSinCambios(entity, request, evidencias)) {
+      return casoMapeador.aRespuesta(entity);
+    }
 
     entity.setEstado(request.getEstado());
     entity.setObservaciones(request.getObservaciones());
@@ -161,6 +165,19 @@ public class CasoServicioImpl implements CasoServicio {
       return List.of(request.getEvidenciaCierre().trim());
     }
     return List.of();
+  }
+
+  private boolean esActualizacionSinCambios(
+      CasoEntidad caso,
+      CasoActualizacionDto request,
+      List<String> evidencias) {
+    return caso.getEstado() == request.getEstado()
+        && Objects.equals(normalizarTexto(caso.getObservaciones()), normalizarTexto(request.getObservaciones()))
+        && evidencias.isEmpty();
+  }
+
+  private String normalizarTexto(String value) {
+    return value == null ? "" : value.trim();
   }
 
   private void guardarEvidencias(CasoEntidad caso, List<String> urls) {
